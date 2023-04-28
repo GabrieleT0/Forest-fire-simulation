@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#define M 4
-#define N 3
-#define S 10 //step dell'algoritmo
+#define M 9
+#define N 4
+#define S 30 //step dell'algoritmo
 #define TREE "🌲"
 #define EMPTY "❌"
 #define BURN "🔥"
