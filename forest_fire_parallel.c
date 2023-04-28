@@ -4,7 +4,7 @@
 #include "mpi.h"
 #define M 9
 #define N 4
-#define S 10 //step dell'algoritmo
+#define S 1 //step dell'algoritmo
 #define TREE "🌲"
 #define EMPTY "❌"
 #define BURN "🔥"
@@ -53,7 +53,7 @@ int main(int argc, char *argv[]){
         sum += send_counts[i];
     }
        
-    printf("Sono il processo %d, questo è il numero di elementi che riceverò: %d\n", myrank, send_counts[myrank]);
+    //printf("Sono il processo %d, questo è il numero di elementi che riceverò: %d\n", myrank, send_counts[myrank]);
 
     if(myrank == 0){
         /*
@@ -76,78 +76,101 @@ int main(int argc, char *argv[]){
 
     MPI_Scatterv(forest,send_counts,displ,MPI_CHAR,sub_forest,send_counts[myrank],MPI_CHAR,0,MPI_COMM_WORLD);
     
+    
+    printf("Sono il processo %d, questa è la porzione di foresta che ho ricevuto:\n",myrank);
+    printMatrix(sub_forest,send_counts[myrank]/N,N);
+
+
     printf("Sono il processo %d, questa è la porzione di foresta che ho ricevuto:\n",myrank);
     printMatrix(sub_forest,send_counts[myrank]/N,N);
 
     int my_row_num = send_counts[myrank] / N;
 
-    if(myrank == 0){ 
-        //invio l'ultima riga al processo successivo
-        MPI_Send(&sub_forest[send_counts[myrank] - N],N,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD);
-        //ricevo la prima riga dal processo successivo
-        MPI_Recv(bottom_row,N,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD,&status);
-    } else if(myrank == numtasks - 1){
-        //invio la prima riga al processo precedente
-        MPI_Send(sub_forest,N,MPI_CHAR,myrank - 1,0,MPI_COMM_WORLD);
-        //ricevo ultima riga dal processo precedente
-        MPI_Recv(top_row,N,MPI_CHAR,myrank - 1,0,MPI_COMM_WORLD,&status);
-    } else { // tutti gli altri processi
-        //invio la prima riga al processo precedente
-        MPI_Send(sub_forest,N,MPI_CHAR,myrank -1,0,MPI_COMM_WORLD);
-        //invio l'ultima riga al successivo 
-        MPI_Send(&sub_forest[send_counts[myrank] - N],N,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD);
+    for(int i = 0; i<S; i++){
+        if(myrank == 0){ 
+            //invio l'ultima riga al processo successivo
+            MPI_Send(&sub_forest[send_counts[myrank] - N],N,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD);
+            //ricevo la prima riga dal processo successivo
+            MPI_Recv(bottom_row,N,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD,&status);
+        } else if(myrank == numtasks - 1){
+            //invio la prima riga al processo precedente
+            MPI_Send(sub_forest,N,MPI_CHAR,myrank - 1,0,MPI_COMM_WORLD);
+            //ricevo ultima riga dal processo precedente
+            MPI_Recv(top_row,N,MPI_CHAR,myrank - 1,0,MPI_COMM_WORLD,&status);
+        } else { // tutti gli altri processi
+            //invio la prima riga al processo precedente
+            MPI_Send(sub_forest,N,MPI_CHAR,myrank -1,0,MPI_COMM_WORLD);
+            //invio l'ultima riga al successivo 
+            MPI_Send(&sub_forest[send_counts[myrank] - N],N,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD);
 
-        //ricevo la riga superiore dal processo precedente
-        MPI_Recv(top_row,N,MPI_CHAR,myrank - 1,0,MPI_COMM_WORLD,&status);
-        //ricevo la riga inferiore dal processo successivo
-        MPI_Recv(bottom_row,N,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD,&status);
-    }
+            //ricevo la riga superiore dal processo precedente
+            MPI_Recv(top_row,N,MPI_CHAR,myrank - 1,0,MPI_COMM_WORLD,&status);
+            //ricevo la riga inferiore dal processo successivo
+            MPI_Recv(bottom_row,N,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD,&status);
+        }
 
-    printf("-----------------Sono il processo %d ed ho riucevuto questa top row:---------------------\n",myrank);
-    printMatrix(top_row,1,N);
-    printf("-----------------Sono il processo %d ed ho ricevuto questa bottom row:-------------------\n",myrank);
-    printMatrix(bottom_row,1,N);
+        //printf("-----------------Sono il processo %d ed ho riucevuto questa top row:---------------------\n",myrank);
+        //printMatrix(top_row,1,N);
+        //printf("-----------------Sono il processo %d ed ho ricevuto questa bottom row:-------------------\n",myrank);
+        //printMatrix(bottom_row,1,N);
 
-    if(my_row_num >= 3){ // se ho più di 3 righe possso iniziare già a computare le righe non ai bordi
-        for(int i = 1; i<my_row_num - 1; i++){
-            for(int j = 0; j<N; j++){
+        if(my_row_num >= 3){ // se ho più di 3 righe possso iniziare già a computare le righe non ai bordi
+            for(int i = 1; i<my_row_num - 1; i++){
+                for(int j = 0; j<N; j++){
+                    if(sub_forest[i * N + j] == 'B')
+                        sub_matrix[i * N + j] = 'E'; //Se è già Burned allora ora la cella diventa vuota
+                    else if(sub_forest[i * N + j] == 'E'){
+                        int rand_num = 1 + (rand() % 100); // se è vuota, allora con probabilità prob_grown può crescere un albero nella cella
+                        if(rand_num <= prob_grow){
+                            sub_matrix[i * N + j] = 'T';
+                        } else
+                            sub_matrix[i * N + j] = 'E';
+                    }else if(sub_forest[i * N + j] == 'T'){
+                        check_neighbors(sub_forest,sub_matrix,my_row_num,N,i,j,prob_burn);
+                    }
+                }
+            }
+        }
+        //controllo le righe ai bordi
+        for(int i = 0;;i = my_row_num - 1){
+            for(int j = 0; j < N; j++){
                 if(sub_forest[i * N + j] == 'B')
-                    sub_matrix[i * N + j] = 'E'; //Se è già Burned allora ora la cella diventa vuota
+                    sub_matrix[i * N + j] = 'E';
                 else if(sub_forest[i * N + j] == 'E'){
                     int rand_num = 1 + (rand() % 100); // se è vuota, allora con probabilità prob_grown può crescere un albero nella cella
                     if(rand_num <= prob_grow){
                         sub_matrix[i * N + j] = 'T';
-                    } else
+                    } else 
                         sub_matrix[i * N + j] = 'E';
                 }else if(sub_forest[i * N + j] == 'T'){
-                    check_neighbors(sub_forest,sub_matrix,my_row_num,N,i,j,prob_burn);
+                    check_borders(sub_forest,sub_matrix,top_row,bottom_row,i,j,my_row_num,N,prob_burn);
                 }
             }
+            if(i == my_row_num -1)
+                break;
         }
-    }
-    //controllo le righe ai bordi
-    for(int i = 0;;i = my_row_num - 1){
-        for(int j = 0; j < N; j++){
-            if(sub_forest[i * N + j] == 'B')
-                sub_matrix[i * N + j] = 'E';
-            else if(sub_forest[i * N + j] == 'E'){
-                int rand_num = 1 + (rand() % 100); // se è vuota, allora con probabilità prob_grown può crescere un albero nella cella
-                if(rand_num <= prob_grow){
-                    sub_matrix[i * N + j] = 'T';
-                } else 
-                    sub_matrix[i * N + j] = 'E';
-            }else if(sub_forest[i * N + j] == 'T'){
-                check_borders(sub_forest,sub_matrix,top_row,bottom_row,i,j,my_row_num,N,prob_burn);
-            }
-        }
-        if(i == my_row_num -1)
-            break;
+
+        fflush(stdout);
+
+        //printf("Sono il processo %d, questa è la porzione di foresta che ho ricevuto:\n",myrank);
+        //printMatrix(sub_forest,send_counts[myrank]/N,N);
+
+        //printf("Sono il processo %d ecco la mia foresta dopo il controllo:\n",myrank);
+        //printMatrix(sub_matrix,my_row_num,N);
+        //printf("\n");
+    
+        tmp = sub_forest;
+        sub_forest = sub_matrix;
+        sub_matrix = tmp;
+    
     }
 
-    fflush(stdout);
+    MPI_Gatherv(sub_forest,send_counts[myrank],MPI_CHAR,forest,send_counts,displ,MPI_CHAR,0,MPI_COMM_WORLD);
 
-    printf("Sono il processo %d ecco la mia foresta dopo il controllo:\n",myrank);
-    printMatrix(sub_matrix,my_row_num,N);
+    if(myrank == 0){
+        printf("Ecco la foresta finale:\n");
+        printMatrix(forest,M,N);
+    }
 
     MPI_Finalize();
     return 0;
@@ -182,7 +205,7 @@ void check_neighbors(char *forest,char *matrix2,int num_row,int num_col,int i,in
     //se controllando l'elemento a destra sono ancora della riga (quindi il resto della divisione deve essere 0 altrimenti vuol dire che sono all'ultimo elemento)
     if(((i * num_col)  + j + 1) % num_col != 0 && forest[((i * num_col) + j + 1)] == 'B')
         matrix2[i * num_col + j] = 'B';
-    //se controllando l'elemento a sinistra sono ancora della riga (quindi il resto della divisione deve essere diverso na n-1 altrimenti vuol dire che sono al primo elemento della riga)
+    //se controllando l'elemento a sinistra sono ancora della riga (quindi il resto della divisione deve essere diverso da n-1 altrimenti vuol dire che sono al primo elemento della riga)
     if(((i * num_col)  + j - 1) % num_col != num_col-1 && forest[((i * num_col) + j - 1)] == 'B')
         matrix2[i * num_col + j] = 'B';
 
@@ -198,7 +221,7 @@ void check_neighbors(char *forest,char *matrix2,int num_row,int num_col,int i,in
 
     //se nessun vicino è burned allora con probabilità prob_burn può diventare burned
     int rand_num = 1 + (rand() % 100);
-    if(matrix2[i * num_col + j] == 'B'){ //verifico anche se negli if precedenti non l'ho già bruciato, altrimenti poi se non viene soddisfatto il secondo valore dell'OR inserirei un albero in una cella dove uno stava bruciando
+    if(matrix2[i * num_col + j] == 'B' || rand_num < prob_burn){ //verifico anche se negli if precedenti non l'ho già bruciato, altrimenti poi se non viene soddisfatto il secondo valore dell'OR inserirei un albero in una cella dove uno stava bruciando
         matrix2[i * num_col + j] = 'B';
     } else{
         matrix2[i * num_col + j] = 'T';
@@ -214,14 +237,21 @@ void check_borders(char *forest, char *matrix2,char *top_row,char *bottom_row,in
         
     //se sto considerando la prima riga, allora faccio il controllo con top_row
     if(i == 0){
-        if(((i * num_col) + j - num_col) >=0 && top_row[((i * num_col) + j - num_col)] == 'B')
+        if(top_row[i * num_col + j] == 'B')
             matrix2[i * num_col + j] = 'B'; 
-        if(((i * num_col) + j + num_col) < num_row * num_col && forest[((i * num_col) + j + num_col)] == 'B')
-            matrix2[i * num_col + j] = 'B';
+        if((i * num_col) + j + num_col < num_row * num_col){
+            if (forest[((i * num_col) + j + num_col)] == 'B'){
+                matrix2[i * num_col + j] = 'B';
+            }
+        }
+            //se abbiamo una sola riga dobbiamo fare il confreonto sia con top che con bottom
+            //ci assicuriamo anche che non siamo alla fine della matrice
+        else if((bottom_row[i * num_col + j] == 'B')) //TODO: soluzione per far funzionare quando abbiamo processi con 1 riga, ma poi non funziona per più righe 
+            matrix2[i * num_col + j] = 'B';   
         
     //se sono all'ultima allora controllo con bottom_row
     } else if(i == num_row - 1){
-        if(((i * num_col) + j + num_col) < num_row * num_col && bottom_row[((i * num_col) + j + num_col)] == 'B')
+        if(bottom_row[j] == 'B')
             matrix2[i * num_col + j] = 'B';   
         //verifico se il vicino della riga superiore sta bruciando
         if(((i * num_col) + j - num_col) >=0 && forest[((i * num_col) + j - num_col)] == 'B')
@@ -230,7 +260,7 @@ void check_borders(char *forest, char *matrix2,char *top_row,char *bottom_row,in
 
     //se nessun vicino è burned allora con probabilità prob_burn può diventare burned
     int rand_num = 1 + (rand() % 100);
-    if(matrix2[i * num_col + j] == 'B'){ //verifico anche se negli if precedenti non l'ho già bruciato, altrimenti poi se non viene soddisfatto il secondo valore dell'OR inserirei un albero in una cella dove uno stava bruciando
+    if(matrix2[i * num_col + j] == 'B' ){ //verifico anche se negli if precedenti non l'ho già bruciato, altrimenti poi se non viene soddisfatto il secondo valore dell'OR inserirei un albero in una cella dove uno stava bruciando
         matrix2[i * num_col + j] = 'B';
     } else{
         matrix2[i * num_col + j] = 'T';
