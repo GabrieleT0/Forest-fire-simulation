@@ -92,6 +92,7 @@ int main (int argc, char *argv[]){
     printf("Foresta finale:\n");
     printMatrix(forest,M,N);
 
+    return 0;
 }
 
 
