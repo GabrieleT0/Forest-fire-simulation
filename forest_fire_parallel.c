@@ -246,7 +246,7 @@ void check_borders(char *forest, char *matrix2,char *top_row,char *bottom_row,in
         }
             //se abbiamo una sola riga dobbiamo fare il confreonto sia con top che con bottom
             //ci assicuriamo anche che non siamo alla fine della matrice
-        else if((bottom_row[i * num_col + j] == 'B')) //TODO: soluzione per far funzionare quando abbiamo processi con 1 riga, ma poi non funziona per più righe 
+        else if((bottom_row[i * num_col + j] == 'B'))
             matrix2[i * num_col + j] = 'B';   
         
     //se sono all'ultima allora controllo con bottom_row
@@ -260,7 +260,7 @@ void check_borders(char *forest, char *matrix2,char *top_row,char *bottom_row,in
 
     //se nessun vicino è burned allora con probabilità prob_burn può diventare burned
     int rand_num = 1 + (rand() % 100);
-    if(matrix2[i * num_col + j] == 'B' ){ //verifico anche se negli if precedenti non l'ho già bruciato, altrimenti poi se non viene soddisfatto il secondo valore dell'OR inserirei un albero in una cella dove uno stava bruciando
+    if(matrix2[i * num_col + j] == 'B' || rand_num < prob_burn){ //verifico anche se negli if precedenti non l'ho già bruciato, altrimenti poi se non viene soddisfatto il secondo valore dell'OR inserirei un albero in una cella dove uno stava bruciando
         matrix2[i * num_col + j] = 'B';
     } else{
         matrix2[i * num_col + j] = 'T';
