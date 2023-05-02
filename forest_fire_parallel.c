@@ -2,9 +2,9 @@
 #include <stdlib.h>
 #include <time.h>
 #include "mpi.h"
-#define M 9
-#define N 4
-#define S 1 //step dell'algoritmo
+#define M 4
+#define N 2
+#define S 999999999 //step dell'algoritmo
 #define TREE "🌲"
 #define EMPTY "❌"
 #define BURN "🔥"
@@ -35,7 +35,9 @@ int main(int argc, char *argv[]){
     int sum = 0;
     int prob_burn = 50;  // probabilità che un albero si incendi 0 <= prob_burn <= 100
     int prob_grow = 50;  //probabilità che un albero cresca nella cella vuota, 0 <= prob_tree <= 100    
-
+    int empty_count = 0;
+    int empty_recv_count = 0;
+    int all_empty;
     //Controllo se c'è resto
     remainder = M % numtasks;
 
@@ -87,6 +89,7 @@ int main(int argc, char *argv[]){
     int my_row_num = send_counts[myrank] / N;
 
     for(int i = 0; i<S; i++){
+        empty_count = 0;
         if(myrank == 0){ 
             //invio l'ultima riga al processo successivo
             MPI_Send(&sub_forest[send_counts[myrank] - N],N,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD);
@@ -145,12 +148,13 @@ int main(int argc, char *argv[]){
                 }else if(sub_forest[i * N + j] == 'T'){
                     check_borders(sub_forest,sub_matrix,top_row,bottom_row,i,j,my_row_num,N,prob_burn);
                 }
+                if(sub_matrix[i * N + j] == 'E'){
+                    empty_count++;
+                }
             }
             if(i == my_row_num -1)
                 break;
         }
-
-        fflush(stdout);
 
         //printf("Sono il processo %d, questa è la porzione di foresta che ho ricevuto:\n",myrank);
         //printMatrix(sub_forest,send_counts[myrank]/N,N);
@@ -158,11 +162,25 @@ int main(int argc, char *argv[]){
         //printf("Sono il processo %d ecco la mia foresta dopo il controllo:\n",myrank);
         //printMatrix(sub_matrix,my_row_num,N);
         //printf("\n");
-    
+
         tmp = sub_forest;
         sub_forest = sub_matrix;
         sub_matrix = tmp;
-    
+
+        MPI_Reduce(&empty_count,&empty_recv_count,1,MPI_INT,MPI_SUM,0,MPI_COMM_WORLD);
+        if(myrank == 0){
+            //printf("Contatore vuote: %d\n",empty_recv_count);
+            if(empty_recv_count == M*N){
+                all_empty = 1;
+            }
+        }
+
+        MPI_Bcast(&all_empty,1,MPI_INT,0,MPI_COMM_WORLD);
+        if(all_empty == 1){
+            if(myrank == 0)
+                printf("Foresta vuota, numero di iterazioni: %d\n",i);
+            break;
+        }
     }
 
     MPI_Gatherv(sub_forest,send_counts[myrank],MPI_CHAR,forest,send_counts,displ,MPI_CHAR,0,MPI_COMM_WORLD);
