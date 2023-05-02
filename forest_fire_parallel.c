@@ -2,9 +2,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include "mpi.h"
-#define M 4
-#define N 2
-#define S 999999999 //step dell'algoritmo
+#define S 50 //step dell'algoritmo
 #define TREE "🌲"
 #define EMPTY "❌"
 #define BURN "🔥"
@@ -24,33 +22,43 @@ void check_borders(char *forest, char *matrix2, char *top_row, char *bottom_row,
 
 int main(int argc, char *argv[]){
     int myrank, numtasks;
-    MPI_Status status;
-    MPI_Init(&argc,&argv);
-    MPI_Comm_size(MPI_COMM_WORLD,&numtasks);
-    MPI_Comm_rank(MPI_COMM_WORLD,&myrank);
     int strip_size,remainder,empty_counter;
     int *displ,*send_counts;
     char *forest;
-    int recv_count = M;
     int sum = 0;
     int prob_burn = 50;  // probabilità che un albero si incendi 0 <= prob_burn <= 100
     int prob_grow = 50;  //probabilità che un albero cresca nella cella vuota, 0 <= prob_tree <= 100    
     int empty_count = 0;
     int empty_recv_count = 0;
     int all_empty;
+
+    int m,n;
+    if(argc != 2){
+        m = atoi(argv[1]);
+        n = atoi(argv[2]);
+    } else {
+        printf("Inserisci il numero di righe e il numero di colonne (2 argomenti richiesti)\n");
+        return 1;
+    }
+
+    MPI_Status status;
+    MPI_Init(&argc,&argv);
+    MPI_Comm_size(MPI_COMM_WORLD,&numtasks);
+    MPI_Comm_rank(MPI_COMM_WORLD,&myrank);
+
     //Controllo se c'è resto
-    remainder = M % numtasks;
+    remainder = m % numtasks;
 
     send_counts = malloc(numtasks * sizeof(int));
     displ = malloc(numtasks * sizeof(int));
 
     for(int i = 0; i<numtasks; i++){
-        send_counts[i] = M / numtasks; //numero di righe che dovrà avere ogni processo
+        send_counts[i] = m / numtasks; //numero di righe che dovrà avere ogni processo
         if(remainder > 0){
             send_counts[i]++;  //distribuisco in maniera equa le righe se c'è resto
             remainder--;
         }
-        send_counts[i] *= N; //ottenuto il numero di righe, moltiplico per il numero di colonne, ottentedo la quantità di elementi che in totale avrà ogni processo
+        send_counts[i] *= n; //ottenuto il numero di righe, moltiplico per il numero di colonne, ottentedo la quantità di elementi che in totale avrà ogni processo
         displ[i] = sum; //spiazzamento per scatterv
         sum += send_counts[i];
     }
@@ -61,94 +69,94 @@ int main(int argc, char *argv[]){
         /*
         Allocazione continua di memoria. In questo modo, la matrice è allocata come un singolo blocco di memoria, dove ogni riga è collocata consecutivamente.
         */
-        forest = (char*) malloc(M * N * sizeof(char));
-        //forest = malloc(sizeof(char[M][N]));
+        forest = (char*) malloc(m * n * sizeof(char));
         printf("Foresta iniziale:\n");
-        forest_initialization(forest,M,N);
-        printMatrix(forest,M,N);
+        forest_initialization(forest,m,n);
+        printMatrix(forest,m,n);
     }
 
     //Dichiaro e inizializzo le sottomatrici dei processi
     char *sub_forest = malloc(send_counts[myrank] * sizeof(char));
     char *sub_matrix = malloc(send_counts[myrank] * sizeof(char));
     char *tmp = malloc(send_counts[myrank] * sizeof(char));
-    char *top_row = malloc(N * sizeof(char));
-    char *bottom_row = malloc(N * sizeof(char));
+    char *top_row = malloc(n * sizeof(char));
+    char *bottom_row = malloc(n * sizeof(char));
 
 
     MPI_Scatterv(forest,send_counts,displ,MPI_CHAR,sub_forest,send_counts[myrank],MPI_CHAR,0,MPI_COMM_WORLD);
     
-    
+    /*
     printf("Sono il processo %d, questa è la porzione di foresta che ho ricevuto:\n",myrank);
-    printMatrix(sub_forest,send_counts[myrank]/N,N);
+    printMatrix(sub_forest,send_counts[myrank]/n,n);
 
 
     printf("Sono il processo %d, questa è la porzione di foresta che ho ricevuto:\n",myrank);
-    printMatrix(sub_forest,send_counts[myrank]/N,N);
+    printMatrix(sub_forest,send_counts[myrank]/n,n);
+    */
 
-    int my_row_num = send_counts[myrank] / N;
+    int my_row_num = send_counts[myrank] / n;
 
     for(int i = 0; i<S; i++){
         empty_count = 0;
         if(myrank == 0){ 
             //invio l'ultima riga al processo successivo
-            MPI_Send(&sub_forest[send_counts[myrank] - N],N,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD);
+            MPI_Send(&sub_forest[send_counts[myrank] - n],n,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD);
             //ricevo la prima riga dal processo successivo
-            MPI_Recv(bottom_row,N,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD,&status);
+            MPI_Recv(bottom_row,n,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD,&status);
         } else if(myrank == numtasks - 1){
             //invio la prima riga al processo precedente
-            MPI_Send(sub_forest,N,MPI_CHAR,myrank - 1,0,MPI_COMM_WORLD);
+            MPI_Send(sub_forest,n,MPI_CHAR,myrank - 1,0,MPI_COMM_WORLD);
             //ricevo ultima riga dal processo precedente
-            MPI_Recv(top_row,N,MPI_CHAR,myrank - 1,0,MPI_COMM_WORLD,&status);
+            MPI_Recv(top_row,n,MPI_CHAR,myrank - 1,0,MPI_COMM_WORLD,&status);
         } else { // tutti gli altri processi
             //invio la prima riga al processo precedente
-            MPI_Send(sub_forest,N,MPI_CHAR,myrank -1,0,MPI_COMM_WORLD);
+            MPI_Send(sub_forest,n,MPI_CHAR,myrank -1,0,MPI_COMM_WORLD);
             //invio l'ultima riga al successivo 
-            MPI_Send(&sub_forest[send_counts[myrank] - N],N,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD);
+            MPI_Send(&sub_forest[send_counts[myrank] - n],n,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD);
 
             //ricevo la riga superiore dal processo precedente
-            MPI_Recv(top_row,N,MPI_CHAR,myrank - 1,0,MPI_COMM_WORLD,&status);
+            MPI_Recv(top_row,n,MPI_CHAR,myrank - 1,0,MPI_COMM_WORLD,&status);
             //ricevo la riga inferiore dal processo successivo
-            MPI_Recv(bottom_row,N,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD,&status);
+            MPI_Recv(bottom_row,n,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD,&status);
         }
 
         //printf("-----------------Sono il processo %d ed ho riucevuto questa top row:---------------------\n",myrank);
-        //printMatrix(top_row,1,N);
+        //printMatrix(top_row,1,n);
         //printf("-----------------Sono il processo %d ed ho ricevuto questa bottom row:-------------------\n",myrank);
-        //printMatrix(bottom_row,1,N);
+        //printMatrix(bottom_row,1,n);
 
         if(my_row_num >= 3){ // se ho più di 3 righe possso iniziare già a computare le righe non ai bordi
             for(int i = 1; i<my_row_num - 1; i++){
-                for(int j = 0; j<N; j++){
-                    if(sub_forest[i * N + j] == 'B')
-                        sub_matrix[i * N + j] = 'E'; //Se è già Burned allora ora la cella diventa vuota
-                    else if(sub_forest[i * N + j] == 'E'){
+                for(int j = 0; j<n; j++){
+                    if(sub_forest[i * n + j] == 'B')
+                        sub_matrix[i * n + j] = 'E'; //Se è già Burned allora ora la cella diventa vuota
+                    else if(sub_forest[i * n + j] == 'E'){
                         int rand_num = 1 + (rand() % 100); // se è vuota, allora con probabilità prob_grown può crescere un albero nella cella
                         if(rand_num <= prob_grow){
-                            sub_matrix[i * N + j] = 'T';
+                            sub_matrix[i * n + j] = 'T';
                         } else
-                            sub_matrix[i * N + j] = 'E';
-                    }else if(sub_forest[i * N + j] == 'T'){
-                        check_neighbors(sub_forest,sub_matrix,my_row_num,N,i,j,prob_burn);
+                            sub_matrix[i * n + j] = 'E';
+                    }else if(sub_forest[i * n + j] == 'T'){
+                        check_neighbors(sub_forest,sub_matrix,my_row_num,n,i,j,prob_burn);
                     }
                 }
             }
         }
         //controllo le righe ai bordi
         for(int i = 0;;i = my_row_num - 1){
-            for(int j = 0; j < N; j++){
-                if(sub_forest[i * N + j] == 'B')
-                    sub_matrix[i * N + j] = 'E';
-                else if(sub_forest[i * N + j] == 'E'){
+            for(int j = 0; j < n; j++){
+                if(sub_forest[i * n + j] == 'B')
+                    sub_matrix[i * n + j] = 'E';
+                else if(sub_forest[i * n + j] == 'E'){
                     int rand_num = 1 + (rand() % 100); // se è vuota, allora con probabilità prob_grown può crescere un albero nella cella
                     if(rand_num <= prob_grow){
-                        sub_matrix[i * N + j] = 'T';
+                        sub_matrix[i * n + j] = 'T';
                     } else 
-                        sub_matrix[i * N + j] = 'E';
-                }else if(sub_forest[i * N + j] == 'T'){
-                    check_borders(sub_forest,sub_matrix,top_row,bottom_row,i,j,my_row_num,N,prob_burn);
+                        sub_matrix[i * n + j] = 'E';
+                }else if(sub_forest[i * n + j] == 'T'){
+                    check_borders(sub_forest,sub_matrix,top_row,bottom_row,i,j,my_row_num,n,prob_burn);
                 }
-                if(sub_matrix[i * N + j] == 'E'){
+                if(sub_matrix[i * n + j] == 'E'){
                     empty_count++;
                 }
             }
@@ -157,10 +165,10 @@ int main(int argc, char *argv[]){
         }
 
         //printf("Sono il processo %d, questa è la porzione di foresta che ho ricevuto:\n",myrank);
-        //printMatrix(sub_forest,send_counts[myrank]/N,N);
+        //printMatrix(sub_forest,send_counts[myrank]/n,n);
 
         //printf("Sono il processo %d ecco la mia foresta dopo il controllo:\n",myrank);
-        //printMatrix(sub_matrix,my_row_num,N);
+        //printMatrix(sub_matrix,my_row_num,n);
         //printf("\n");
 
         tmp = sub_forest;
@@ -170,7 +178,7 @@ int main(int argc, char *argv[]){
         MPI_Reduce(&empty_count,&empty_recv_count,1,MPI_INT,MPI_SUM,0,MPI_COMM_WORLD);
         if(myrank == 0){
             //printf("Contatore vuote: %d\n",empty_recv_count);
-            if(empty_recv_count == M*N){
+            if(empty_recv_count == m*n){
                 all_empty = 1;
             }
         }
@@ -187,7 +195,7 @@ int main(int argc, char *argv[]){
 
     if(myrank == 0){
         printf("Ecco la foresta finale:\n");
-        printMatrix(forest,M,N);
+        printMatrix(forest,m,n);
     }
 
     MPI_Finalize();
@@ -199,11 +207,11 @@ void forest_initialization(char *forest,int num_row,int num_col){
         for(int j = 0; j<num_col; j++){
             int rand_num = 1 + (rand() % 100);
             if(rand_num > 70)
-                forest[i* N + j] = 'T';
+                forest[i* num_col + j] = 'T';
             else if(rand_num <= 50)
-                forest[i * N + j] = 'E';
+                forest[i * num_col + j] = 'E';
             else
-                forest[i * N + j] = 'B';
+                forest[i * num_col + j] = 'B';
         }
     }
 }
