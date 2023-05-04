@@ -1,9 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#define M 4
-#define N 4
-#define S 500 //step dell'algoritmo
 #define TREE "🌲"
 #define EMPTY "❌"
 #define BURN "🔥"
@@ -42,43 +39,53 @@ int main (int argc, char *argv[]){
     int empty_counter;
     //srand(time(NULL)); // usiamo l'ora corrente come seme per il generatore di numeri random
 
-    forest = malloc(sizeof(char[M][N]));
-    matrix2 = malloc(sizeof(char[M][N]));
+    int m,n,s;
+    if(argc != 3){
+        m = atoi(argv[1]);
+        n = atoi(argv[2]);
+        s = atoi(argv[3]);
+    } else{
+        printf("Inserisci il numero di righe, il numero di colonne e il numero di step dell'algoritmo (3 argomenti richiesti [row,col,step])\n");
+        return 1;
+    }
+
+    forest = (char*) malloc(m * n * sizeof(char));
+    matrix2 = (char*) malloc(m * n * sizeof(char));
 
     //inizializzo matrice
-    forest_initialization(forest,M,N);
+    forest_initialization(forest,m,n);
 
     printf("Foresta iniziale:\n");
-    printMatrix(forest,M,N);
-    //print_graphic_matrix(forest,M,N,fptr);
-    print_forest_file(forest,M,N,fptr2);
+    printMatrix(forest,m,n);
+    //print_graphic_matrix(forest,m,n,fptr);
+    print_forest_file(forest,m,n,fptr2);
 
     //Ciclo per quanti sono gli step della simulazione
-    for(int k = 0; k<S; k++){
+    for(int k = 0; k<s; k++){
 
         empty_counter = 0;
 
         //Scorro la foresta
-        for(int i = 0; i<M; i++){
-            for(int j = 0; j<N; j++){
-                if(forest[i * N + j] == 'B')
-                    matrix2[i * N + j] = 'E';  //Se è già Burned alla diventa vuota la cella ora
-                else if(forest[i * N +j] == 'E'){ 
+        for(int i = 0; i<m; i++){
+            for(int j = 0; j<n; j++){
+                if(forest[i * n + j] == 'B')
+                    matrix2[i * n + j] = 'E';  //Se è già Burned alla diventa vuota la cella ora
+                else if(forest[i * n +j] == 'E'){ 
                     /*
                     int rand_num = 1 + (rand() % 100); //se è vuota, allora con probabilità prob_grown può crescere un albero nella cella
                     if(rand_num <= prob_grow){
-                        matrix2[i * N + j] = 'T';
+                        matrix2[i * n + j] = 'T';
                     } else
-                        matrix2[i * N + j] = 'E';
+                        matrix2[i * n + j] = 'E';
                     */
-                   matrix2[i * N + j] = 'T';
-                }else if(forest[i * N +j] == 'T'){ //allora abbiamo un albero nella cella e dobbiamo controllare se deve bruciare
+                   matrix2[i * n + j] = 'T';
+                }else if(forest[i * n +j] == 'T'){ //allora abbiamo un albero nella cella e dobbiamo controllare se deve bruciare
                     
-                    check_neighbors(forest,matrix2,M,N,i,j,prob_burn);
+                    check_neighbors(forest,matrix2,m,n,i,j,prob_burn);
                 
                 }
                 //se nella matrice di appoggio alla fine di tutti i controlli la cella è vuota incremento il contatore per poi controllare se per caso alla fine della s-esima iterazione la foresta è vuota
-                if (matrix2[i * N + j] == 'E'){
+                if (matrix2[i * n + j] == 'E'){
                     empty_counter++;
                 }
             }
@@ -89,17 +96,17 @@ int main (int argc, char *argv[]){
         matrix2 = tmp;
 
         printf("Foresta iterazione %d\n",k);
-        printMatrix(forest,M,N);
-        //print_graphic_matrix(forest,M,N,fptr);
-        print_forest_file(forest,M,N,fptr2);
+        printMatrix(forest,m,n);
+        //print_graphic_matrix(forest,m,n,fptr);
+        print_forest_file(forest,m,n,fptr2);
 
         //controllo se la foresta è vuota e quindi devo fermarmi.
-        if(empty_counter == M*N)
+        if(empty_counter == m*n)
             break;
     }
     
     printf("Foresta finale:\n");
-    printMatrix(forest,M,N);
+    printMatrix(forest,m,n);
 
     return 0;
 }
@@ -110,11 +117,11 @@ void forest_initialization(char *forest,int num_row,int num_col){
         for(int j = 0; j<num_col; j++){
             int rand_num = 1 + (rand() % 100);
             if(rand_num > 70)
-                forest[i* N + j] = 'T';
+                forest[i* num_col + j] = 'T';
             else if(rand_num <= 50)
-                forest[i * N + j] = 'E';
+                forest[i * num_col + j] = 'E';
             else
-                forest[i * N + j] = 'B';
+                forest[i * num_col + j] = 'B';
         }
     }
 }
@@ -136,7 +143,7 @@ void check_neighbors(char *forest,char *matrix2,int num_row,int num_col,int i,in
         matrix2[i * num_col + j] = 'B';
 
     //verifico se il vicino della riga superiore sta bruciando
-    if(((i * N) + j - num_col) >=0 && forest[((i * num_col) + j - num_col)] == 'B')
+    if(((i * num_col) + j - num_col) >=0 && forest[((i * num_col) + j - num_col)] == 'B')
         matrix2[i * num_col + j] = 'B';   
 
     //se nessun vicino è burned allora con probabilità prob_burn può diventare burned

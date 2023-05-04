@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <time.h>
 #include "mpi.h"
-#define S 500 //step dell'algoritmo
 #define TREE "🌲"
 #define EMPTY "❌"
 #define BURN "🔥"
@@ -32,12 +31,13 @@ int main(int argc, char *argv[]){
     int empty_recv_count = 0;
     int all_empty;
     double start, end;
-    int m,n;
-    if(argc != 2){
+    int m,n,s;
+    if(argc != 3){
         m = atoi(argv[1]);
         n = atoi(argv[2]);
+        s = atoi(argv[3]);
     } else {
-        printf("Inserisci il numero di righe e il numero di colonne (2 argomenti richiesti)\n");
+        printf("Inserisci il numero di righe, il numero di colonne e il numero di step dell'algoritmo (3 argomenti richiesti [row,col,step])\n");
         return 1;
     }
 
@@ -98,7 +98,7 @@ int main(int argc, char *argv[]){
 
     int my_row_num = send_counts[myrank] / n;
 
-    for(int i = 0; i<S; i++){
+    for(int i = 0; i<s; i++){
         empty_count = 0;
         if(myrank == 0){ 
             //invio l'ultima riga al processo successivo

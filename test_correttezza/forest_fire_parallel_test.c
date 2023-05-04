@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <time.h>
 #include "mpi.h"
-#define S 500 //step dell'algoritmo
 #define TREE "🌲"
 #define EMPTY "❌"
 #define BURN "🔥"
@@ -42,12 +41,13 @@ int main(int argc, char *argv[]){
     int all_empty = 0;
     double start, end;
 
-    int m,n;
+    int m,n,s;
     if(argc != 2){
         m = atoi(argv[1]);
         n = atoi(argv[2]);
+        s = atoi(argv[3]);
     } else {
-        printf("Inserisci il numero di righe e il numero di colonne (2 argomenti richiesti)\n");
+        printf("Inserisci il numero di righe, il numero di colonne e il numero di step dell'algoritmo (3 argomenti richiesti [row,col,step])\n");
         return 1;
     }
 
@@ -86,7 +86,7 @@ int main(int argc, char *argv[]){
         forest_initialization(forest,m,n);
         printMatrix(forest,m,n);
         //print_graphic_matrix(forest,m,n,fptr);
-        //print_forest_file(forest,m,n,fptr2);
+        print_forest_file(forest,m,n,fptr2);
     }
 
     //Dichiaro e inizializzo le sottomatrici dei processi
@@ -103,7 +103,7 @@ int main(int argc, char *argv[]){
 
     int my_row_num = send_counts[myrank] / n;
 
-    for(int i = 0; i<S; i++){
+    for(int i = 0; i<s; i++){
 
         empty_count = 0; //conta ad ogni iterazione quante celle vuote ci sono
 
@@ -197,6 +197,13 @@ int main(int argc, char *argv[]){
         sub_forest = sub_matrix;
         sub_matrix = tmp;
 
+        MPI_Gatherv(sub_forest,send_counts[myrank],MPI_CHAR,forest,send_counts,displ,MPI_CHAR,0,MPI_COMM_WORLD);
+        if(myrank == 0){
+            printf("Ecco la foresta all'iterazione %d:\n",i);
+            printMatrix(forest,m,n);
+            print_forest_file(forest,m,n,fptr2);
+        }
+
         MPI_Reduce(&empty_count,&empty_recv_count,1,MPI_INT,MPI_SUM,0,MPI_COMM_WORLD);
         if(myrank == 0){
             //printf("Contatore vuote: %d\n",empty_recv_count);
@@ -209,13 +216,6 @@ int main(int argc, char *argv[]){
 
         if(all_empty == 1)
             break;
-    }
-
-    MPI_Gatherv(sub_forest,send_counts[myrank],MPI_CHAR,forest,send_counts,displ,MPI_CHAR,0,MPI_COMM_WORLD);
-    
-    if(myrank == 0){
-        printf("Ecco la foresta finale:\n");
-        printMatrix(forest,m,n);
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
