@@ -2,9 +2,6 @@
 #include <stdlib.h>
 #include <time.h>
 #include "mpi.h"
-#define TREE "🌲"
-#define EMPTY "❌"
-#define BURN "🔥"
 
 
 //stampa della matrice di char
@@ -13,11 +10,8 @@ void printMatrix(char *matrix,int num_row,int num_col);
 //inizializzo la foresta
 void forest_initialization(char *forest,int num_row,int num_col);
 
-//stampa la matrice su un file utlizzando le emoji
-void print_graphic_matrix(char *matrix,int num_row, int num_col,FILE *file);
-
 //stampa la foresta su file
-void print_forest_file(char *matrix, int num_row, int num_col, FILE *file);
+void print_on_file(char *matrix, int num_row, int num_col, FILE *file);
 
 //controlla se la cella deve bruciare
 void check_neighbors(char *forest,char *matrix2,int num_row,int num_col,int i,int j,int prob_burn);
@@ -28,7 +22,7 @@ void check_borders(char *forest, char *matrix2, char *top_row, char *bottom_row,
 int main(int argc, char *argv[]){
     FILE *fptr,*fptr2;
     //fptr = fopen("output_parallelo","w");
-    fptr2 = fopen("output_parallelo_char","w");
+    fptr2 = fopen("output_parallelo","w");
     int myrank, numtasks;
     int strip_size,remainder,empty_counter;
     int *displ,*send_counts;
@@ -56,7 +50,6 @@ int main(int argc, char *argv[]){
     MPI_Init(&argc,&argv);
     MPI_Comm_size(MPI_COMM_WORLD,&numtasks);
     MPI_Comm_rank(MPI_COMM_WORLD,&myrank);
-
 
     //Controllo se c'è resto
     remainder = m % numtasks;
@@ -86,7 +79,7 @@ int main(int argc, char *argv[]){
         forest_initialization(forest,m,n);
         printMatrix(forest,m,n);
         //print_graphic_matrix(forest,m,n,fptr);
-        print_forest_file(forest,m,n,fptr2);
+        print_on_file(forest,m,n,fptr2);
     }
 
     //Dichiaro e inizializzo le sottomatrici dei processi
@@ -201,7 +194,7 @@ int main(int argc, char *argv[]){
         if(myrank == 0){
             printf("Ecco la foresta all'iterazione %d:\n",i);
             printMatrix(forest,m,n);
-            print_forest_file(forest,m,n,fptr2);
+            print_on_file(forest,m,n,fptr2);
         }
 
         MPI_Reduce(&empty_count,&empty_recv_count,1,MPI_INT,MPI_SUM,0,MPI_COMM_WORLD);
@@ -318,25 +311,7 @@ void check_borders(char *forest, char *matrix2,char *top_row,char *bottom_row,in
     }
 }
 
-void print_graphic_matrix(char *matrix,int num_row, int num_col,FILE *file){
-    for(int i=0; i<num_row; i++){
-        for(int j=0; j<num_col; j++){
-            if(matrix[(i*num_col) + j] == 'T'){
-                fprintf(file, "[%s]", TREE);
-            } else if (matrix[(i*num_col) + j] == 'B'){
-                fprintf(file, "[%s]", BURN);
-            } else if (matrix[(i*num_col) + j] == 'E'){
-                fprintf(file, "[%s]", EMPTY);
-            }
-            fprintf(file, " ");
-            
-        }
-        fprintf(file, "\n");
-    }
-    fprintf(file, "\n");
-}
-
-void print_forest_file(char *matrix, int num_row, int num_col, FILE *file){
+void print_on_file(char *matrix, int num_row, int num_col, FILE *file){
     for(int i = 0; i<num_row; i++){
         for(int j = 0; j<num_col; j++){
             fprintf(file," [%c] ",matrix[i* num_col + j]);
