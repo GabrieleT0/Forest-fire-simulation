@@ -23,8 +23,7 @@ int main(int argc, char *argv[]){
     FILE *fptr,*fptr2;
     //fptr = fopen("output_parallelo","w");
     fptr2 = fopen("output_parallelo","w");
-    int myrank, numtasks;
-    int strip_size,remainder,empty_counter;
+    int myrank, numtasks,strip_size,remainder,empty_counter;
     int *displ,*send_counts;
     char *forest;
     int sum = 0;

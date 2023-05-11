@@ -2,13 +2,12 @@
 #include <stdlib.h>
 #include <time.h>
 #include "mpi.h"
-#define TREE "🌲"
-#define EMPTY "❌"
-#define BURN "🔥"
-
 
 //stampa della matrice di char
 void printMatrix(char *matrix,int num_row,int num_col);
+
+//stampa la foresta su file
+void print_on_file(char *matrix, int num_row, int num_col, FILE *file);
 
 //inizializzo la foresta
 void forest_initialization(char *forest,int num_row,int num_col);
@@ -20,8 +19,9 @@ void check_neighbors(char *forest,char *matrix2,int num_row,int num_col,int i,in
 void check_borders(char *forest, char *matrix2, char *top_row, char *bottom_row, int i,int j, int num_row, int num_col,int prob_burn);
 
 int main(int argc, char *argv[]){
-    int myrank, numtasks;
-    int strip_size,remainder,empty_counter;
+    FILE *fptr;
+    fptr = fopen("forrest_fire_output","w");
+    int myrank, numtasks,strip_size,remainder,empty_counter,all_empty,m,n,s;
     int *displ,*send_counts;
     char *forest;
     int sum = 0;
@@ -29,9 +29,8 @@ int main(int argc, char *argv[]){
     int prob_grow = 50;  //probabilità che un albero cresca nella cella vuota, 0 <= prob_tree <= 100    
     int empty_count = 0;
     int empty_recv_count = 0;
-    int all_empty;
     double start, end;
-    int m,n,s;
+    
     if(argc != 3){
         m = atoi(argv[1]);
         n = atoi(argv[2]);
@@ -73,6 +72,7 @@ int main(int argc, char *argv[]){
         printf("Foresta iniziale:\n");
         forest_initialization(forest,m,n);
         printMatrix(forest,m,n);
+        print_on_file(forest,m,n,fptr);
     }
 
     //Dichiaro e inizializzo le sottomatrici dei processi
@@ -201,6 +201,7 @@ int main(int argc, char *argv[]){
     if(myrank == 0){
         printf("Ecco la foresta finale:\n");
         printMatrix(forest,m,n);
+        print_on_file(forest,m,n,fptr);
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
@@ -302,4 +303,14 @@ void check_borders(char *forest, char *matrix2,char *top_row,char *bottom_row,in
     } else{
         matrix2[i * num_col + j] = 'T';
     }
+}
+
+void print_on_file(char *matrix, int num_row, int num_col, FILE *file){
+    for(int i = 0; i<num_row; i++){
+        for(int j = 0; j<num_col; j++){
+            fprintf(file," [%c] ",matrix[i* num_col + j]);
+        }
+        fprintf(file, "\n");
+    }
+    fprintf(file, "\n");
 }
