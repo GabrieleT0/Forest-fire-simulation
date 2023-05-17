@@ -1,20 +1,20 @@
 # Forest-fire-simulation
 ## Introduzione
-Questo progetto è una possibile implementazione dell'algoritmo Forrest fire in C sfruttando Open MPI che è una implementazione di MPI. Tale problema è ben descritto qui: https://en.wikipedia.org/wiki/Forest-fire_model. In breve, questa implementazione parallelizza la simulazione di un incendio boschivo, con i seguenti requisiti:
+Questo progetto è una possibile implementazione dell'algoritmo Forrest fire in C che utilizza Open MPI, una implementazione di MPI. Tale problema è ben descritto qui: https://en.wikipedia.org/wiki/Forest-fire_model. In breve, questa implementazione parallelizza la simulazione di un incendio boschivo, con i seguenti requisiti:
 
 1. Una cella bruciata si traforma in una cella vuota
 2. Un albero brucia se almeno uno dei suoi vicini sta bruciando
-3. Un albero si incendia con probabilità b anche se nessun vicino sta bruciando
-4. In una cella vuota può nascere un albero con probabilità p
+3. Un albero si incendia con probabilità $b$ anche se nessun vicino sta bruciando
+4. In una cella vuota può nascere un albero con probabilità $p$
 
 La simulazione può terminare o quando tutta la foresta è vuota, oppure quando si raggiunge un numero di iterazioni S dell'algoritmo (dato in input dall'utente al programma).
 ## Descrizione della soluzione proposta
-La soluzione proposta prevede che l'utente dia in input la dimensione della matrice ($N$ ed $M$) e il numero di step dell'algoritmo ($S$). Il processo master (rank 0), inizializza la matrice riempiendo casualmente una cella con una dei seguenti valori:
+La soluzione proposta prevede che l'utente dia in input la dimensione della matrice ($N$ ed $M$) e il numero di step dell'algoritmo ($S$). Il processo master ($rank 0$), inizializza la matrice riempiendo casualmente una cella con una dei seguenti valori:
 - $T$: nella cella c'è un albero
 - $E$: la cella è vuota
 - $B$: l'albero sta bruciando
 
-Il master node poi procede a dividere in modo equo le righe della matrice fra i processi disponibili ed ogni processo lavorerà su una porzione della matrice. Ogni processo poi comunica con i processi vicini  le righe estreme della sottomatrice ricevuta, in modo da verificare se l'albero dovrà bruciare oppure no. Se la sottomatrice ricevuta da un processo è almeno 3 righe, allora il processo potrà procedere a computare una parte della simulazione senza fare comunicazione (tranne quando andrà a considerare i bordi), questo meccanismo permette di velocizzare la simulazione, come vedremo al punto (inserire riferimento). Ogni processo poi terrà conto ad ogni iterazione delle celle vuote e le comunicherà al master node, che farà terminare la simulazione quando: $\#celle vuote = N * M$  oppure la simulazione terminerà al raggiungimento di $S$.
+Il master node poi procede a dividere in modo equo le righe della matrice fra i processi disponibili ed ogni processo lavorerà su una porzione della matrice. Ogni processo poi comunica con i processi vicini  le righe estreme della sottomatrice ricevuta, in modo da verificare se l'albero dovrà bruciare oppure no. Se la sottomatrice ricevuta da un processo è almeno 3 righe, allora il processo potrà procedere a computare una parte della simulazione senza fare comunicazione (tranne quando andrà a considerare i bordi), questo meccanismo permette di velocizzare la simulazione, come vedremo al punto (inserire riferimento). Ogni processo poi terrà conto ad ogni iterazione delle celle vuote e le comunicherà al master node, che farà terminare la simulazione quando: il numero di celle vuote è pari al numero di celle totali della matrice oppure la simulazione terminerà al raggiungimento di $S$.
 
 ## Dettagli dell'implementazione
 In questa sezione saranno dettaglite le parti più significative del codice dell'implementazione.
@@ -81,7 +81,7 @@ Avendo utilizzato la scatterv per la suddivisione delle righe fra i processi, ab
             MPI_Irecv(bottom_row,n,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD,&request[1]);
         }
 ```
-La comunicazione scelta è non bloccante, perchè nel mentre vengono scambiati i messaggi fra i processi è possibile fare della computazione (non sempre), andando quindi a rendere più efficiente l'algoritmo e poi sincronizzari i processi solo quando sono necessari i messaggi.
+La comunicazione scelta è non bloccante, perchè nel mentre vengono scambiati i messaggi fra i processi, è possibile fare della computazione (non sempre), andando quindi a rendere più efficiente l'algoritmo e poi sincronizzare i processi solo quando sono necessari i messaggi.
 Ogni processo, tranne il processo con rank 0 e l'ultimo (rank = numtasks - 1), inviano la prima riga al processo precedente, in quanto ha bisogno del bordo inferiore per controllare i vicini, mentre inviano l'ultima riga al successivo, in quanto ha bisogno del bordo superiore per controllare i vicini. In ricezione invece, l'n-esimo processo deve ricevere dal processo precedente la riga superiore e dal processo successivo la riga inferiore. I valori ricevuti vengono salvati rispettivamente in ```top_row``` e ```bottom_row``` per essere utilizzati successivamente per il controllo. Il processo con rank 0 invece riceve solamente il bordo inferiore e invia l'ultima riga della sua sotto matrice al processo successivo, mentre l'ultimo processo invia la prima riga della sua sottomatrice al processo precedente e riceve l'ultima riga del processo precedente.
 ### Calcolo della simulazione indipendente dalle righe ricevute
 Questa parte del codice sarà eseguita senza aspettare che le send e le receive siano terminate. In particolare, ogni processo potrà fare una computazione in maniera indipendente dagli altri processi, se la sottomatrice che ha ricevuto ha più di 3 righe. Poichè in questo caso il controllo delle celle delle righe centrali non dipende dai bordi della matrice che devo ricevere dagli altri processi.
@@ -106,7 +106,7 @@ if(my_row_num >= 3){ // se ho più di 3 righe possso iniziare già a computare l
             }
         }
 ```
-Quindi partendo dalla seconda riga della matrice, fino alla penultima, posso già calcolarmi tutti i valori delle celle. Per il calcolo dei valori della foresta nell'iterazione i-esima, viene utilizzata una matrice di supporto ```sub_matrix``` dove vengono inseriti i nuovi valori della martrice, che al termine dell'iterazione sarà scambiata con ```sub_forest``` per il nuovo step. Nel caso in cui nella cella abbiamo un albero, allora viene chiamata la funzione ```check_neighbors```.
+Quindi partendo dalla seconda riga della matrice, fino alla penultima, posso già calcolarmi tutti i valori delle celle. Per il calcolo dei valori della foresta nell'iterazione i-esima, viene utilizzata una matrice di supporto ```sub_matrix``` dove vengono inseriti i nuovi valori della martrice, che al termine dell'iterazione sarà scambiata con ```sub_forest``` per il nuovo step. Nel caso in cui nella cella che stiamo considerando abbiamo un albero, allora viene chiamata la funzione ```check_neighbors```.
 ```C
 void check_neighbors(char *forest,char *matrix2,int num_row,int num_col,int i,int j,int prob_burn){
     //controllo a destra e a sinistra
@@ -139,7 +139,7 @@ void check_neighbors(char *forest,char *matrix2,int num_row,int num_col,int i,in
 ```
 Questa funzione, per la cella che stiamo considerando, va a verificare lo stato dei vicini a destra, sinistra, sopra e sotto. Se uno di questi sta bruciando, allora la cella diventerà $B$. Altrimenti se nessuno sta bruciando con probabilità ```prob_burn```, l'albero brucerà.
 ### Controllo delle righe ai bordi
-Per la computazione delle righe ai bordi vi è bisogno delle righe degli altri processi, quindi viene utilizzatta una ```MPI_Waitall```, dopodichè si può procedere a controllare la prima e l'ultima riga della sottomatrice di ogni processo. Questo viene fatto utilizzando la funzione check_borders che prende in input le righe superiore e inferiore ricevute e va ad eseguire i controlli.
+Per la computazione delle righe ai bordi vi è bisogno delle righe degli altri processi, quindi viene utilizzatta una ```MPI_Waitall```, dopodichè si può procedere a controllare la prima e l'ultima riga della sottomatrice di ogni processo. Questo viene fatto utilizzando la funzione ```check_borders``` che prende in input le righe superiore e inferiore ricevute e va ad eseguire i controlli.
 ```C
 void check_borders(char *forest, char *matrix2,char *top_row,char *bottom_row,int i,int j, int num_row, int num_col,int prob_burn){
     //controllo a destra e a sinistra
@@ -182,7 +182,7 @@ void check_borders(char *forest, char *matrix2,char *top_row,char *bottom_row,in
 ```
 La funzione è simile a quella precedente, ed inoltre bisogna considerare anche il caso in cui il processo abbia ricevuto una sola riga, poichè in tal caso, quando leggiamo la riga 0, dobbiamo confrontare i valori nelle cella sia con la riga superiore ricevuta che con quella inferiore e non con la riga inferiore della matrice che abbiamo (in quel caso avremmo un errore perchè abbiamo una sola riga).
 ### Terminazione della simulazione del caso la foresta sia vuota
-Per terminare la simulazione nel caso la foresta sia vuota, ogni processo incrementa un contatore di celle vuote, che azzera poi ad ogni iterazione.
+Per terminare la simulazione nel caso la foresta sia vuota, ogni processo incrementa un contatore di celle vuote, che azzera poi ad ogni nuova iterazione.
 ```C
 MPI_Reduce(&empty_count,&empty_recv_count,1,MPI_INT,MPI_SUM,0,MPI_COMM_WORLD);
         if(myrank == 0){
@@ -199,7 +199,7 @@ MPI_Reduce(&empty_count,&empty_recv_count,1,MPI_INT,MPI_SUM,0,MPI_COMM_WORLD);
             break;
         }
 ```
-Si è utilizzata la ```MPI_Reduce```, in modo che viene fatta la somma dei contatori ricevuti da ogni processo, se il valore della somma è uguale al numero di elementi totatli della matrice, allora viene impostato a true un flag ```all_empty``` e il processo master farà la broadcast del flag. Ogni processo controllerà il valore del flag e se lo trova ad 1 si arresterà e terminerà la computazione (il processo master mostrerà sul terminale dopo quante iterazioni la foresta è risultata vuota).
+Si è utilizzata la ```MPI_Reduce```, in modo che viene fatta la somma dei contatori ricevuti da ogni processo(```empty_count```), se il valore della somma è uguale al numero di elementi totali della matrice, allora viene impostato a $true$ un flag ```all_empty``` e il processo master farà la broadcast del flag. Ogni processo controllerà il valore del flag e se lo trova ad 1 si arresterà e terminerà la computazione (il processo master mostrerà sul terminale dopo quante iterazioni la foresta è risultata vuota).
 ### Output della simulazione
 Al termine degli step o quando la foresta è vuota viene eseguita una ```MPI_Gather```, dove il master riceverà tutte le sottomatrici e stamperà sia su terminale che su file la foresta al termine dell'algoritmo. 
 
@@ -207,3 +207,16 @@ Al termine degli step o quando la foresta è vuota viene eseguita una ```MPI_Gat
 MPI_Gatherv(sub_forest,send_counts[myrank],MPI_CHAR,forest,send_counts,displ,MPI_CHAR,0,MPI_COMM_WORLD);
 ```
 ### Correttezza dell'algoritmo
+Per facilitare il test della correttezza dell'algoritmo si è realiazzata una versione sequenziale dell'algoritmo e una versione parallela che stampa la foresta ad ogni iterazione, in modo da poter controllare se in ogni step dell'algoritmo le foreste sono sempre uguali. Entrambi i programmi inseriscono su un file lo stato della foresta ad ogni iterazione. Per rendere più veloce il test si è realizzato un piccolo script bash che esegue i due programmi e poi con il comando ```diff``` verifica se i due file sono uguali.
+
+Esempio per controllare la correttezza su una matrice di dimensione 50x50 con 50 step e un numero di processori pari a 4 (per il programma parallelo). Dalla root directory del progetto eseguire i seguenti comandi.
+
+```shell
+ cd test_correttezza/
+ ./check_correctness.sh --row 50 --column 50 --steps 40 --processors 4
+ #oppure
+ ./check_correctness.sh -r 50 -c 50 -s 40 -p 4
+
+```
+L'output dell'esecuzione dei programmi viene riportato nei file ```output_sequenziale``` e ```output_parallelo```.
+
