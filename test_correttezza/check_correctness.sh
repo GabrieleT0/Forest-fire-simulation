@@ -15,6 +15,14 @@ column=''
 steps=''
 processors=''
 
+if [ -e output_parallelo ]; then
+    rm output_parallelo
+fi
+
+if [ -e output_sequenziale ]; then
+    rm output_sequenziale
+fi
+
 # legge i parametri dalla riga di comando scorrendoli tutti
 while [[ $# -gt 0 ]] 
 do
@@ -77,8 +85,10 @@ then
 fi
 mpirun --allow-run-as-root -np $processors --oversubscribe  parallel $row $column $steps >/dev/null
 
-if diff output_parallelo output_sequenziale >/dev/null; then
-    echo "Le foreste sono uguali!"
-else
-    echo "Le foreste sono diverse!"
+if [[ -e output_parallelo ]] && [[ -e output_sequenziale ]]; then
+    if diff output_parallelo output_sequenziale >/dev/null; then
+        echo "Le foreste sono uguali!"
+    else
+        echo "Le foreste sono diverse!"
+    fi
 fi
