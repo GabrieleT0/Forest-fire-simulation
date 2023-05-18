@@ -151,7 +151,8 @@ int main(int argc, char *argv[]){
             }
         }
 
-        MPI_Waitall(2,request,MPI_STATUSES_IGNORE);
+        MPI_Wait(&request[0],MPI_STATUSES_IGNORE);
+        MPI_Wait(&request[1],MPI_STATUSES_IGNORE);
 
         //controllo le righe ai bordi
         for(int i = 0;;i = my_row_num - 1){
@@ -208,6 +209,8 @@ int main(int argc, char *argv[]){
 
         if(all_empty == 1)
             break;
+        
+        MPI_Barrier(MPI_COMM_WORLD);
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
