@@ -1,2 +1,11 @@
 /.vscode
-*
+forrest_fire_simulation
+forrest_fire_output
+*.forrest_fire_output
+*.out 
+time.log
+average_times.txt
+test_correttezza/parallel
+test_correttezza/seq
+test_correttezza/output_parallelo
+test_correttezza/output_sequenziale
