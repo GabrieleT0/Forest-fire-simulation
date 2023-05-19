@@ -69,9 +69,9 @@ int main(int argc, char *argv[]){
         Allocazione continua di memoria. In questo modo, la matrice è allocata come un singolo blocco di memoria, dove ogni riga è collocata consecutivamente.
         */
         forest = (char*) malloc(m * n * sizeof(char));
-        printf("Foresta iniziale:\n");
+        //printf("Foresta iniziale:\n");
         forest_initialization(forest,m,n);
-        printMatrix(forest,m,n);
+        //printMatrix(forest,m,n);
         print_on_file(forest,m,n,fptr);
     }
 
@@ -200,8 +200,8 @@ int main(int argc, char *argv[]){
     MPI_Gatherv(sub_forest,send_counts[myrank],MPI_CHAR,forest,send_counts,displ,MPI_CHAR,0,MPI_COMM_WORLD);
 
     if(myrank == 0){
-        printf("Ecco la foresta finale:\n");
-        printMatrix(forest,m,n);
+        //printf("Ecco la foresta finale:\n");
+        //printMatrix(forest,m,n);
         print_on_file(forest,m,n,fptr);
     }
 
