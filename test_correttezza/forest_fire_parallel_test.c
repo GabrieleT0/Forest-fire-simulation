@@ -99,6 +99,7 @@ int main(int argc, char *argv[]){
 
         empty_count = 0; //conta ad ogni iterazione quante celle vuote ci sono
 
+    if(numtasks > 1){
         if(myrank == 0){ 
             //invio l'ultima riga al processo successivo
             MPI_Isend(&sub_forest[send_counts[myrank] - n],n,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD,&request[0]);
@@ -120,6 +121,7 @@ int main(int argc, char *argv[]){
             //ricevo la riga inferiore dal processo successivo
             MPI_Irecv(bottom_row,n,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD,&request[1]);
         }
+    }
 
         /*
         printf("-----------------Sono il processo %d ed ho riucevuto questa top row:---------------------\n",myrank);
@@ -151,9 +153,10 @@ int main(int argc, char *argv[]){
             }
         }
 
-        MPI_Wait(&request[0],MPI_STATUSES_IGNORE);
-        MPI_Wait(&request[1],MPI_STATUSES_IGNORE);
-
+        if(numtasks > 1){
+            MPI_Wait(&request[0],MPI_STATUSES_IGNORE);
+            MPI_Wait(&request[1],MPI_STATUSES_IGNORE);
+        }
         //controllo le righe ai bordi
         for(int i = 0;;i = my_row_num - 1){
             for(int j = 0; j < n; j++){

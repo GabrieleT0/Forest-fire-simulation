@@ -20,7 +20,7 @@ void check_borders(char *forest, char *matrix2, char *top_row, char *bottom_row,
 
 int main(int argc, char *argv[]){
     FILE *fptr;
-    fptr = fopen("forrest_fire_output","w");
+    fptr = fopen("forest_fire_output","w");
     int myrank, numtasks,strip_size,remainder,empty_counter,all_empty,m,n,s;
     int *displ,*send_counts;
     char *forest;
@@ -100,26 +100,28 @@ int main(int argc, char *argv[]){
 
     for(int i = 0; i<s; i++){
         empty_count = 0;
-        if(myrank == 0){ 
-            //invio l'ultima riga al processo successivo
-            MPI_Isend(&sub_forest[send_counts[myrank] - n],n,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD,&request[0]);
-            //ricevo la prima riga dal processo successivo
-            MPI_Irecv(bottom_row,n,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD,&request[1]);
-        } else if(myrank == numtasks - 1){
-            //invio la prima riga al processo precedente
-            MPI_Isend(sub_forest,n,MPI_CHAR,myrank - 1,0,MPI_COMM_WORLD,&request[1]);
-            //ricevo ultima riga dal processo precedente
-            MPI_Irecv(top_row,n,MPI_CHAR,myrank - 1,0,MPI_COMM_WORLD,&request[0]);
-        } else { // tutti gli altri processi
-            //invio la prima riga al processo precedente
-            MPI_Isend(sub_forest,n,MPI_CHAR,myrank -1,0,MPI_COMM_WORLD,&request[1]);
-            //invio l'ultima riga al successivo 
-            MPI_Isend(&sub_forest[send_counts[myrank] - n],n,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD,&request[0]);
+        if(numtasks > 1){
+            if(myrank == 0){ 
+                //invio l'ultima riga al processo successivo
+                MPI_Isend(&sub_forest[send_counts[myrank] - n],n,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD,&request[0]);
+                //ricevo la prima riga dal processo successivo
+                MPI_Irecv(bottom_row,n,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD,&request[1]);
+            } else if(myrank == numtasks - 1){
+                //invio la prima riga al processo precedente
+                MPI_Isend(sub_forest,n,MPI_CHAR,myrank - 1,0,MPI_COMM_WORLD,&request[1]);
+                //ricevo ultima riga dal processo precedente
+                MPI_Irecv(top_row,n,MPI_CHAR,myrank - 1,0,MPI_COMM_WORLD,&request[0]);
+            } else { // tutti gli altri processi
+                //invio la prima riga al processo precedente
+                MPI_Isend(sub_forest,n,MPI_CHAR,myrank -1,0,MPI_COMM_WORLD,&request[1]);
+                //invio l'ultima riga al successivo 
+                MPI_Isend(&sub_forest[send_counts[myrank] - n],n,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD,&request[0]);
 
-            //ricevo la riga superiore dal processo precedente
-            MPI_Irecv(top_row,n,MPI_CHAR,myrank - 1,0,MPI_COMM_WORLD,&request[0]);
-            //ricevo la riga inferiore dal processo successivo
-            MPI_Irecv(bottom_row,n,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD,&request[1]);
+                //ricevo la riga superiore dal processo precedente
+                MPI_Irecv(top_row,n,MPI_CHAR,myrank - 1,0,MPI_COMM_WORLD,&request[0]);
+                //ricevo la riga inferiore dal processo successivo
+                MPI_Irecv(bottom_row,n,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD,&request[1]);
+            }
         }
 
         //printf("-----------------Sono il processo %d ed ho riucevuto questa top row:---------------------\n",myrank);
@@ -145,8 +147,10 @@ int main(int argc, char *argv[]){
             }
         }
 
-        MPI_Wait(&request[0],MPI_STATUSES_IGNORE);
-        MPI_Wait(&request[1],MPI_STATUSES_IGNORE);
+        if(numtasks > 1){
+            MPI_Wait(&request[0],MPI_STATUSES_IGNORE);
+            MPI_Wait(&request[1],MPI_STATUSES_IGNORE);
+        }
 
         //controllo le righe ai bordi
         for(int i = 0;;i = my_row_num - 1){
