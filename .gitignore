@@ -1,6 +1,6 @@
 /.vscode
-forrest_fire_simulation
-forrest_fire_output
+forest_fire_simulation
+forest_fire_output
 *.forrest_fire_output
 *.out 
 time.log
