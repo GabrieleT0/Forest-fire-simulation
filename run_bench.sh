@@ -59,7 +59,7 @@ case $key in
 esac
 done
 
-# Verifica che siano stati specificati esattamente 4 parametri con l'opzione "-p" o "--parametro"
+# Verifica che siano stati specificati esattamente 5 parametri
 if [ -z "$row" ] || [ -z "$column" ] || [ -z "$steps" ] || [ -z "$processors" ] || [ -z "$run" ] ; then
     echo "Errore: specificare esattamente 5 parametri per i dettagli su come utilizzare i parametri usa --help"
     exit 1
@@ -80,17 +80,17 @@ fi
 
 if [ ! -e forrest_fire_simulation ]
 then 
-    mpicc -o forrest_fire_simulation forest_fire_parallel.c
+    mpicc -o forest_fire_simulation forest_fire_parallel.c
 fi
 
 num=$((run))
 
 for ((i=0; i<$num; i++))
 do
-    mpirun --allow-run-as-root -np $processors --oversubscribe forrest_fire_simulation $row $column $steps >> time.log
+    mpirun --allow-run-as-root -np $processors --oversubscribe forest_fire_simulation $row $column $steps >> time.log
 done
 
-echo "Esecuzione della simulazione terminata. Ho eseguito il progreamma $num volte. Procedo a calcolare la media del tempo di esecuzione con $processors processori."
+echo "Esecuzione della simulazione terminata. Ho eseguito il programma $num volte. Procedo a calcolare la media del tempo di esecuzione con $processors processori."
 
 file="time.log"
 sum=0
