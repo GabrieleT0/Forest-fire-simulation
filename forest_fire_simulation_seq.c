@@ -1,12 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include "mpi.h"
 #define M 9
 #define N 4
 #define S 30 //step dell'algoritmo
-#define TREE "🌲"
-#define EMPTY "❌"
-#define BURN "🔥"
 
 /*
 B = Burned
@@ -18,9 +16,6 @@ S = Algorithm steps
 
 //stampa della matrice di char
 void printMatrix(char *matrix,int num_row,int num_col);
-
-//stampa la matrice su un file utlizzando le emoji
-void print_graphic_matrix(char *matrix,int num_row, int num_col,FILE *file);
 
 //controllo se gli alberi vicini sono in fiamme
 void check_neighbors(char *forest,char *matrix2,int num_row,int num_col,int i,int j,int prob_burn);
@@ -36,7 +31,10 @@ int main (int argc, char *argv[]){
     int prob_grow = 50;  //probabilità che un albero cresca nella cella vuota, 0 <= prob_tree <= 100
     char *forest, *matrix2, *tmp;
     int empty_counter;
+    double start, end;
     srand(time(NULL)); // usiamo l'ora corrente come seme per il generatore di numeri random
+    
+    MPI_Init(&argc,&argv);
 
     forest = malloc(sizeof(char[M][N]));
     matrix2 = malloc(sizeof(char[M][N]));
@@ -44,9 +42,8 @@ int main (int argc, char *argv[]){
     //inizializzo matrice
     forest_initialization(forest,M,N);
 
-    printf("Foresta iniziale:\n");
-    printMatrix(forest,M,N);
-    print_graphic_matrix(forest,M,N,fptr);
+    MPI_Barrier(MPI_COMM_WORLD);
+    start = MPI_Wtime();
 
     //Ciclo per quanti sono gli step della simulazione
     for(int k = 0; k<S; k++){
@@ -80,18 +77,19 @@ int main (int argc, char *argv[]){
         forest = matrix2;
         matrix2 = tmp;
 
-        printf("Foresta iterazione %d\n",k);
-        printMatrix(forest,M,N);
-        print_graphic_matrix(forest,M,N,fptr);
-
         //controllo se la foresta è vuota e quindi devo fermarmi.
         if(empty_counter == M*N)
             break;
     }
-    
-    printf("Foresta finale:\n");
-    printMatrix(forest,M,N);
 
+    MPI_Barrier(MPI_COMM_WORLD);
+    end = MPI_Wtime();
+    printf("Time in ms = %f\n", end-start);
+    
+    free(forest);
+    free(matrix2);
+
+    MPI_Finalize();
     return 0;
 }
 
@@ -146,22 +144,4 @@ void printMatrix(char *matrix,int num_row,int num_col){
         }
         printf("\n");
     }
-}
-
-void print_graphic_matrix(char *matrix,int num_row, int num_col,FILE *file){
-    for(int i=0; i<num_row; i++){
-        for(int j=0; j<num_col; j++){
-            if(matrix[(i*num_col) + j] == 'T'){
-                fprintf(file, "[%s]", TREE);
-            } else if (matrix[(i*num_col) + j] == 'B'){
-                fprintf(file, "[%s]", BURN);
-            } else if (matrix[(i*num_col) + j] == 'E'){
-                fprintf(file, "[%s]", EMPTY);
-            }
-            fprintf(file, " ");
-            
-        }
-        fprintf(file, "\n");
-    }
-    fprintf(file, "\n");
 }

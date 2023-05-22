@@ -100,6 +100,9 @@ int main (int argc, char *argv[]){
     
     printf("Foresta finale:\n");
     printMatrix(forest,m,n);
+    
+    free(forest);
+    free(matrix2);
 
     return 0;
 }

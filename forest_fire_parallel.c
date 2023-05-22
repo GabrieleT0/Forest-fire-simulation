@@ -212,8 +212,12 @@ int main(int argc, char *argv[]){
     MPI_Barrier(MPI_COMM_WORLD);
     end = MPI_Wtime();
     if(myrank == 0){
-         printf("Time in ms = %f\n", end-start);
+        printf("Time in ms = %f\n", end-start);
+        free(forest);
     }
+    free(sub_forest);
+    free(sub_matrix);
+
     MPI_Finalize();
 
     return 0;
