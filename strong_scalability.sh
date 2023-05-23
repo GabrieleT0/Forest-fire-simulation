@@ -78,6 +78,11 @@ then
     rm time.log
 fi
 
+if [ -e average_times.txt ]
+then 
+    rm average_times.txt
+fi
+
 if [ ! -e forrest_fire_simulation ]
 then 
     mpicc -o forest_fire_simulation forest_fire_parallel.c
