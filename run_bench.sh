@@ -6,7 +6,7 @@ print_usage() {
   echo "--row -r permette di impostare il numero delle righe"
   echo "--column -c permette di impostare il numero di colonne"
   echo "--steps -s permette di impostare il numero degli step dell'algoritmo"
-  echo "--processors -p permette di impostare il numero di processori su cui eseguire il programma parallelo"
+  echo "--processors -p permette di impostare il numero massimo di processori su cui eseguire il programma parallelo (es. 10, allora il benchmark partirà a calcolare i tempi da 1 fino a 10 processori)"
   echo "--num_run -n permette di specificare quante volte eseguire il programma"
   echo "--help -h Mostra questo messaggio di aiuto"
 }
@@ -84,13 +84,16 @@ then
 fi
 
 num=$((run))
+upper_bound_np=$((processors))
 
+for ((j=1; j<=$upper_bound_np; j++))
+do
 for ((i=0; i<$num; i++))
 do
-    mpirun --allow-run-as-root -np $processors --oversubscribe forest_fire_simulation $row $column $steps >> time.log
+    mpirun --allow-run-as-root -np $j  --oversubscribe forest_fire_simulation $row $column $steps >> time.log
+    #mpirun --allow-run-as-root -np $j --hostfile hfile --oversubscribe /home/gabT/Forest-fire-simulation/forest_fire_simulation $row $column $steps >> time.log
 done
-
-echo "Esecuzione della simulazione terminata. Ho eseguito il programma $num volte. Procedo a calcolare la media del tempo di esecuzione con $processors processori."
+echo "Esecuzione della simulazione terminata. Ho eseguito il programma $num volte. Procedo a calcolare la media del tempo di esecuzione con $j processori."
 
 file="time.log"
 sum=0
@@ -109,8 +112,12 @@ done < "$file"
 if ((count > 0)); then
     average=$(awk "BEGIN {print $sum / $count}")
     echo "Tempo medio impiegato nelle $num esecuzioni: $average"
-    echo "Tempo medio impiegato nelle $num esecuzioni su $processors processori: $average" >> average_times.txt 
+    echo "Tempo medio impiegato nelle $num esecuzioni su $j processori: $average" >> average_times.txt 
 else
     echo "Il file analizzato non contiene alcun valore."
 fi
+rm time.log
+done
+
+
 
