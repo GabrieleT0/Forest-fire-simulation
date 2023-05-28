@@ -206,7 +206,7 @@ Al termine degli step o quando la foresta è vuota viene eseguita una ```MPI_Gat
 ```C
 MPI_Gatherv(sub_forest,send_counts[myrank],MPI_CHAR,forest,send_counts,displ,MPI_CHAR,0,MPI_COMM_WORLD);
 ```
-### Correttezza dell'algoritmo
+## Correttezza dell'algoritmo
 Per facilitare il test della correttezza dell'algoritmo si è realiazzata una versione sequenziale dell'algoritmo e una versione parallela che stampa la foresta ad ogni iterazione, in modo da poter controllare se in ogni step dell'algoritmo le foreste sono sempre uguali. Entrambi i programmi inseriscono su un file lo stato della foresta ad ogni iterazione. Per rendere più veloce il test si è realizzato un piccolo script bash che esegue i due programmi e poi con il comando ```diff``` verifica se i due file sono uguali.
 
 Esempio per controllare la correttezza su una matrice di dimensione 50x50 con 50 step e un numero di processori pari a 4 (per il programma parallelo). Dalla root directory del progetto eseguire i seguenti comandi.
@@ -215,8 +215,57 @@ Esempio per controllare la correttezza su una matrice di dimensione 50x50 con 50
  cd test_correttezza/
  ./check_correctness.sh --row 50 --column 50 --steps 40 --processors 4
  #oppure
- ./check_correctness.sh -r 50 -c 50 -s 40 -p 4
+ ./check_correctness.sh -r 50 -c 50 -s 40 -p 2
 
 ```
-L'output dell'esecuzione dei programmi viene riportato nei file ```output_sequenziale``` e ```output_parallelo```.
+L'output dell'esecuzione dei programmi viene riportato nei file ```output_sequenziale``` e ```output_parallelo```. Se i due file contengono lo stesso output, cioè significa che nelle s iterazioni, lo stato della foresta era sempre uguale, fra programma eseguito con p processori e fra il programma sequenziale. Ciò ci assicura la corretteza del programma parallelo.
 
+## Benchmarks
+Prima di andare nel dettaglio nel mostrare i dati del benchmark effettuato è opportuno fare le seguenti premesse.
+I benchmark sono stati eseguiti su un cluster di macchine virtuali create su Google Cloud. In particolare, il cluster è stato creato con 6 macchine di tipo e2-standard-4. Questo tipo di macchine hanno si 4vCPU, ma in realtà al sistema operativo solo 2vCPU vengono esposte. Di conseguenza nel test, per avere dati più realistici e sfruttare solamente i core reali disponibili della macchina, il test è stato eseguito con procesessori che variano da 1 fino a 12. Inolte, non è stato possibile andare ad usare macchine e2-standard-8 (con 8vCPU e quindi 4vCPU esposte al SO) per fare un testo con oltre 12 processori, in quanto Google Cloud pone un limite di massimo 24 core per regione (e il conteggio dei core viene fatto sulle vCPU presenti nella descrizione della macchina e non in quelle realmente utilizzabili). Dunque, per avere dei test più veritieri possibili ci si è fermati a 12 processori nel test di scalabilità. Tutti i tempi di esecuzione che saranno mostrati nel seguito, sono la media dei tempi su 10 esecuzioni consecutive della simulazione.
+### Scalabilità forte
+Nel test della scalabilità forte, vengono riportati i tempi dell'esecuzione della simulazione su una matrice di dimensione $3000*3000$, eseguendo $100$ $step$ e con le seguenti probabilità:
+
+```C
+    int prob_burn = 50;  // probabilità che un albero si incendi
+    int prob_grow = 50;  //probabilità che un albero cresca nella cella vuota
+```
+
+![Scalabilità forte](img/Strong_scalability.png?raw=true)
+
+Nella tabella di seguito vengono riportati nel dettaglio i dati con anche il relativo speedup al crescere dei processori.
+
+| PROCESSORI |  TEMPO (sec.)| SPEEDUP |
+|------------|--------------|---------|
+| 1          | 31,3127      | 1.00000 |
+| 2          | 15,9797      | 1,9595  |
+| 3          | 10,8956      | 2,8738  |
+| 4          | 8,55186      | 3,6615  |
+| 5          | 6,85979      | 4,5646  |
+| 6          | 5,84798      | 5,3544  |
+| 7          | 5,10273      | 6,1364  |
+| 8          | 4,65547      | 6,7260  |
+| 9          | 4,19364      | 7,4667  |
+| 10         | 3,82968      | 8,1763  |
+| 11         | 3,58176      | 8,7422  |
+| 12         | 3,32661      | 9,4127  |
+
+### Scalabilità debole
+Nel test per la scalabilità debole invece, viene preso il tempo dell'esecuzione aumentado il numero delle righe e il numero di processori su cui viene eseguita la simulazione. In particolare, il numero di colonne è fissato a 500, mentre le righe sono np*150 (np=numero dei processori) e con un nemero di step dell'algoritmo pari a 100.
+
+![Scalabilità forte](img/weak_scalability.png?raw=true)
+
+| PROCESSORI |  TEMPO (sec.) | EFFICIENZA |
+|------------|---------------|------------|
+| 1          | 0,2626        | 1.00000    |
+| 2          | 0,1358        | 1,9595     |
+| 3          | 0,0947        | 2,8738     |
+| 4          | 0,0741        | 3,6615     |
+| 5          | 0,1276        | 4,5646     |
+| 6          | 0,0849        | 5,3544     |
+| 7          | 0,0781        | 6,1364     |
+| 8          | 0,0702        | 6,7260     |
+| 9          | 0,0736        | 7,4667     |
+| 10         | 0,0850        | 8,1763     |
+| 11         | 0,0680        | 8,7422     |
+| 12         | 0,0739        | 9,4127     |

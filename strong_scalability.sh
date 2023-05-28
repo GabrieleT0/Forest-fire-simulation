@@ -95,8 +95,8 @@ for ((j=1; j<=$upper_bound_np; j++))
 do
 for ((i=0; i<$num; i++))
 do
-    mpirun --allow-run-as-root -np $j  --oversubscribe forest_fire_simulation $row $column $steps >> time.log
-    #mpirun --allow-run-as-root -np $j --hostfile hfile --oversubscribe /home/gabT/Forest-fire-simulation/forest_fire_simulation $row $column $steps >> time.log
+    #mpirun --allow-run-as-root -np $j  --oversubscribe forest_fire_simulation $row $column $steps >> time.log
+    mpirun --allow-run-as-root -np $j --hostfile hfile /home/gabT/Forest-fire-simulation/forest_fire_simulation $row $column $steps >> time.log
 done
 echo "Esecuzione della simulazione terminata. Ho eseguito il programma $num volte. Procedo a calcolare la media del tempo di esecuzione con $j processori."
 

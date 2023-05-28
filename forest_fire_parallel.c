@@ -199,6 +199,8 @@ int main(int argc, char *argv[]){
                 printf("Foresta vuota, numero di iterazioni: %d\n",i);
             break;
         }
+        
+        MPI_Barrier(MPI_COMM_WORLD);
     }
 
     MPI_Gatherv(sub_forest,send_counts[myrank],MPI_CHAR,forest,send_counts,displ,MPI_CHAR,0,MPI_COMM_WORLD);
