@@ -1,20 +1,29 @@
 # Forest-fire-simulation
+## Indice
+1. [Introduzione](#introduzione)
+
+2. [Descrizione della soluzione proposta](#descrizione-della-soluzione-proposta)
+3. [Dettagli dell'implementazione](#dettagli-dellimplementazione)
+4. [Correttezza dell'algoritmo](#correttezza-dellalgoritmo)
+5. [Benchmarks](#benchmarks)
+6. [Conclusioni](#conclusioni)
+
 ## Introduzione
 Questo progetto è una possibile implementazione dell'algoritmo Forrest fire in C che utilizza Open MPI, una implementazione di MPI. Tale problema è ben descritto qui: https://en.wikipedia.org/wiki/Forest-fire_model. In breve, questa implementazione parallelizza la simulazione di un incendio boschivo, con i seguenti requisiti:
 
-1. Una cella bruciata si traforma in una cella vuota
-2. Un albero brucia se almeno uno dei suoi vicini sta bruciando
-3. Un albero si incendia con probabilità $b$ anche se nessun vicino sta bruciando
-4. In una cella vuota può nascere un albero con probabilità $p$
+1. Una cella bruciata si traforma in una cella vuota.
+2. Un albero brucia se almeno uno dei suoi vicini sta bruciando.
+3. Un albero si incendia con probabilità $b$ anche se nessun vicino sta bruciando.
+4. In una cella vuota può nascere un albero con probabilità $p$.
 
 La simulazione può terminare o quando tutta la foresta è vuota, oppure quando si raggiunge un numero di iterazioni S dell'algoritmo (dato in input dall'utente al programma).
 ## Descrizione della soluzione proposta
-La soluzione proposta prevede che l'utente dia in input la dimensione della matrice ($N$ ed $M$) e il numero di step dell'algoritmo ($S$). Il processo master ($rank 0$), inizializza la matrice riempiendo casualmente una cella con una dei seguenti valori:
-- $T$: nella cella c'è un albero
-- $E$: la cella è vuota
-- $B$: l'albero sta bruciando
+La soluzione proposta prevede che l'utente dia in input la dimensione della matrice ($N$ ed $M$) e il numero di step dell'algoritmo ($S$). Il processo master ($rank$ $0$), inizializza la matrice riempiendo casualmente una cella con una dei seguenti valori:
+- $T$: nella cella c'è un albero.
+- $E$: la cella è vuota.
+- $B$: l'albero sta bruciando.
 
-Il master node poi procede a dividere in modo equo le righe della matrice fra i processi disponibili ed ogni processo lavorerà su una porzione della matrice. Ogni processo poi comunica con i processi vicini  le righe estreme della sottomatrice ricevuta, in modo da verificare se l'albero dovrà bruciare oppure no. Se la sottomatrice ricevuta da un processo è almeno 3 righe, allora il processo potrà procedere a computare una parte della simulazione senza fare comunicazione (tranne quando andrà a considerare i bordi), questo meccanismo permette di velocizzare la simulazione, come vedremo al punto (inserire riferimento). Ogni processo poi terrà conto ad ogni iterazione delle celle vuote e le comunicherà al master node, che farà terminare la simulazione quando: il numero di celle vuote è pari al numero di celle totali della matrice oppure la simulazione terminerà al raggiungimento di $S$.
+Il master node poi procede a dividere in modo equo le righe della matrice fra i processi disponibili ed ogni processo lavorerà su una porzione della matrice. Ogni processo poi comunica con i processi vicini le righe agli estremi della sottomatrice ricevuta, in modo da verificare se l'albero dovrà bruciare oppure no. Se la sottomatrice ricevuta da un processo è almeno 3 righe, allora il processo potrà procedere a computare una parte della simulazione senza fare comunicazione (tranne quando andrà a considerare i bordi), questo meccanismo permette di velocizzare la simulazione. Ogni processo poi terrà conto ad ogni iterazione delle celle vuote e le comunicherà al master node, che farà terminare la simulazione quando il numero di celle vuote è pari al numero di celle totali della matrice. Altrimenti la simulazione termina al raggiungimento di $S$.
 
 ## Dettagli dell'implementazione
 In questa sezione saranno dettaglite le parti più significative del codice dell'implementazione.
@@ -35,28 +44,7 @@ void forest_initialization(char *forest,int num_row,int num_col){
 }
 ```
 Il seme utilizzato da rand è il tempo, allo scorrimento di ogni cella viene generato un numero compreso fra 0 e 100 e se il numero è maggiore di 70 viene inserito un albero, se è minore o uguale a 50 sarà una cella vuota altrimenti sarà un albero che sta bruciando.
-### Suddivisione delle righe
-```C
-//m: numero di righe
-//n: numero di colonne 
-//numtasks: numero di processi
 
-//Controllo se c'è resto
-    sum = 0;
-    remainder = m % numtasks;
-
-    for(int i = 0; i<numtasks; i++){
-        send_counts[i] = m / numtasks; //numero di righe che dovrà avere ogni processo
-        if(remainder > 0){
-            send_counts[i]++;  //distribuisco in maniera equa le righe se c'è resto
-            remainder--;
-        }
-        send_counts[i] *= n; //ottenuto il numero di righe, moltiplico per il numero di colonne, ottentedo la quantità di elementi che in totale avrà ogni processo
-        displ[i] = sum; //spiazzamento per scatterv
-        sum += send_counts[i];
-    }
-```
-Avendo utilizzato la scatterv per la suddivisione delle righe fra i processi, abbiamo bisogno del displacement (```displ```) e della grandezza del buffer di ricezione di ogni singolo processo (```send_counts```) che può variare in base la numero di righe che riceverà.
 ### Comunicazione asincrona dei bordi delle sottomatrici
 ```C
         if(myrank == 0){ 
@@ -139,7 +127,7 @@ void check_neighbors(char *forest,char *matrix2,int num_row,int num_col,int i,in
 ```
 Questa funzione, per la cella che stiamo considerando, va a verificare lo stato dei vicini a destra, sinistra, sopra e sotto. Se uno di questi sta bruciando, allora la cella diventerà $B$. Altrimenti se nessuno sta bruciando con probabilità ```prob_burn```, l'albero brucerà.
 ### Controllo delle righe ai bordi
-Per la computazione delle righe ai bordi vi è bisogno delle righe degli altri processi, quindi viene utilizzatta una ```MPI_Waitall```, dopodichè si può procedere a controllare la prima e l'ultima riga della sottomatrice di ogni processo. Questo viene fatto utilizzando la funzione ```check_borders``` che prende in input le righe superiore e inferiore ricevute e va ad eseguire i controlli.
+Per la computazione delle righe ai bordi vi è bisogno delle righe degli altri processi, quindi vengono utilizzate due ```MPI_Wait```, rispettivamente su ```request[0]``` e ```request[1]```, dopodichè si può procedere a controllare la prima e l'ultima riga della sottomatrice di ogni processo. Questo viene fatto utilizzando la funzione ```check_borders``` che prende in input le righe superiore e inferiore ricevute e va ad eseguire i controlli.
 ```C
 void check_borders(char *forest, char *matrix2,char *top_row,char *bottom_row,int i,int j, int num_row, int num_col,int prob_burn){
     //controllo a destra e a sinistra
@@ -180,7 +168,7 @@ void check_borders(char *forest, char *matrix2,char *top_row,char *bottom_row,in
     }
 }
 ```
-La funzione è simile a quella precedente, ed inoltre bisogna considerare anche il caso in cui il processo abbia ricevuto una sola riga, poichè in tal caso, quando leggiamo la riga 0, dobbiamo confrontare i valori nelle cella sia con la riga superiore ricevuta che con quella inferiore e non con la riga inferiore della matrice che abbiamo (in quel caso avremmo un errore perchè abbiamo una sola riga).
+La funzione è simile a quella precedente, ed inoltre bisogna considerare anche il caso in cui il processo abbia ricevuto una sola riga, poichè in tal caso, quando leggiamo la riga 0, dobbiamo confrontare i valori nelle cella sia con la riga superiore ricevuta che con quella inferiore.
 ### Terminazione della simulazione del caso la foresta sia vuota
 Per terminare la simulazione nel caso la foresta sia vuota, ogni processo incrementa un contatore di celle vuote, che azzera poi ad ogni nuova iterazione.
 ```C
@@ -215,14 +203,14 @@ Esempio per controllare la correttezza su una matrice di dimensione 50x50 con 50
  cd test_correttezza/
  ./check_correctness.sh --row 50 --column 50 --steps 40 --processors 4
  #oppure
- ./check_correctness.sh -r 50 -c 50 -s 40 -p 2
+ ./check_correctness.sh -r 50 -c 50 -s 40 -p 4
 
 ```
-L'output dell'esecuzione dei programmi viene riportato nei file ```output_sequenziale``` e ```output_parallelo```. Se i due file contengono lo stesso output, cioè significa che nelle s iterazioni, lo stato della foresta era sempre uguale, fra programma eseguito con p processori e fra il programma sequenziale. Ciò ci assicura la corretteza del programma parallelo.
+L'output dell'esecuzione dei programmi viene riportato nei file ```output_sequenziale``` e ```output_parallelo```. Se i due file contengono lo stesso output, cioè significa che nelle $S$ iterazioni, lo stato della foresta era sempre uguale, fra programma eseguito con $p$ processori e fra il programma sequenziale. Ciò ci assicura la corretteza del programma parallelo.
 
 ## Benchmarks
 Prima di andare nel dettaglio nel mostrare i dati del benchmark effettuato è opportuno fare le seguenti premesse.
-I benchmark sono stati eseguiti su un cluster di macchine virtuali create su Google Cloud. In particolare, il cluster è stato creato con 6 macchine di tipo e2-standard-4. Questo tipo di macchine hanno si 4vCPU, ma in realtà al sistema operativo solo 2vCPU vengono esposte. Di conseguenza nel test, per avere dati più realistici e sfruttare solamente i core reali disponibili della macchina, il test è stato eseguito con procesessori che variano da 1 fino a 12. Inolte, non è stato possibile andare ad usare macchine e2-standard-8 (con 8vCPU e quindi 4vCPU esposte al SO) per fare un testo con oltre 12 processori, in quanto Google Cloud pone un limite di massimo 24 core per regione (e il conteggio dei core viene fatto sulle vCPU presenti nella descrizione della macchina e non in quelle realmente utilizzabili). Dunque, per avere dei test più veritieri possibili ci si è fermati a 12 processori nel test di scalabilità. Tutti i tempi di esecuzione che saranno mostrati nel seguito, sono la media dei tempi su 10 esecuzioni consecutive della simulazione.
+I benchmark sono stati eseguiti su un cluster di macchine virtuali create su Google Cloud. In particolare, il cluster è stato creato con 4 macchine di tipo e2-standard-8. Questo tipo di macchine hanno si 8vCPU, ma in realtà al sistema operativo solo 4vCPU vengono esposte. Di conseguenza nel test, per avere dati più realistici e sfruttare solamente i core reali disponibili della macchina, il test è stato eseguito con procesessori che variano da 1 fino a 16 (senza usare oversubscribe). Tutti i tempi di esecuzione che saranno mostrati nel seguito, sono la media dei tempi su 10 esecuzioni consecutive della simulazione.
 ### Scalabilità forte
 Nel test della scalabilità forte, vengono riportati i tempi dell'esecuzione della simulazione su una matrice di dimensione $3000*3000$, eseguendo $100$ $step$ e con le seguenti probabilità:
 
@@ -231,9 +219,9 @@ Nel test della scalabilità forte, vengono riportati i tempi dell'esecuzione del
     int prob_grow = 50;  //probabilità che un albero cresca nella cella vuota
 ```
 
-![Scalabilità forte](img/Strong_scalability.png?raw=true)
+![Scalabilità forte](img/strong_scalability.png?raw=true)
 
-Nella tabella di seguito vengono riportati nel dettaglio i dati con anche il relativo speedup al crescere dei processori.
+Nella tabella di seguito vengono riportati nel dettaglio i dati con anche il relativo speedup al crescere dei processori. Nel calcolo del tempo è stato escluso il tempo impiegato dal MASTER node per inizializzare la matrice all'inizio della simulazione, tale inizializzazione prende 8,3082s (calcolato su 10 esecuzioni).
 
 | PROCESSORI |  TEMPO (sec.)| SPEEDUP |
 |------------|--------------|---------|
@@ -249,23 +237,34 @@ Nella tabella di seguito vengono riportati nel dettaglio i dati con anche il rel
 | 10         | 3,82968      | 8,1763  |
 | 11         | 3,58176      | 8,7422  |
 | 12         | 3,32661      | 9,4127  |
+| 13         | 3,14370      | 9,9604  |
+| 14         | 2,98696      | 10,483  |
+| 15         | 3,58176      | 10,997  |
+| 16         | 3,32661      | 11,708  |
 
 ### Scalabilità debole
-Nel test per la scalabilità debole invece, viene preso il tempo dell'esecuzione aumentado il numero delle righe e il numero di processori su cui viene eseguita la simulazione. In particolare, il numero di colonne è fissato a 500, mentre le righe sono np*150 (np=numero dei processori) e con un nemero di step dell'algoritmo pari a 100.
+Nel test per la scalabilità debole invece, viene preso il tempo dell'esecuzione aumentado il numero delle righe e il numero di processori su cui viene eseguita la simulazione. In particolare, il numero di colonne è fissato a 500, mentre le righe sono np*200 (np=numero dei processori) e con un nemero di step dell'algoritmo pari a 100.
 
 ![Scalabilità forte](img/weak_scalability.png?raw=true)
 
-| PROCESSORI |  TEMPO (sec.) | EFFICIENZA |
-|------------|---------------|------------|
-| 1          | 0,2626        | 1.00000    |
-| 2          | 0,1358        | 1,9595     |
-| 3          | 0,0947        | 2,8738     |
-| 4          | 0,0741        | 3,6615     |
-| 5          | 0,1276        | 4,5646     |
-| 6          | 0,0849        | 5,3544     |
-| 7          | 0,0781        | 6,1364     |
-| 8          | 0,0702        | 6,7260     |
-| 9          | 0,0736        | 7,4667     |
-| 10         | 0,0850        | 8,1763     |
-| 11         | 0,0680        | 8,7422     |
-| 12         | 0,0739        | 9,4127     |
+| PROCESSORI |  TEMPO (sec.) | EFFICIENZA  |
+|------------|---------------|-------------|
+| 1          | 0,0149        | 100         |
+| 2          | 0,0296        | 50,3378     |
+| 3          | 0,0443        | 33,6343     |
+| 4          | 0,0595        | 25,0420     |
+| 5          | 0,0738        | 10,1897     |
+| 6          | 0,0895        | 16,6480     |
+| 7          | 0,1037        | 14,3683     |
+| 8          | 0,1197        | 12,4477     |
+| 9          | 0,1372        | 11,2283     |
+| 10         | 0,1485        | 10,0275     |
+| 11         | 0,1623        | 9,18052     |
+| 12         | 0,1774        | 8,39909     |
+| 13         | 0,1913        | 7,78881     |
+| 14         | 0,2059        | 7,23652     |
+| 15         | 0,2216        | 6,72382     |
+| 16         | 0,2366        | 6,29754     |
+
+## Conclusioni
+Come si può evincere dal test della scalabilità debole, l'algoritmo sicuramente riesce a trarre benefici dall'esecuzione in parallelo della simulazione. Da notare però che la diminuzione del tempo è forte soprattuto fino ad arrivare a 8 processori, dopo la diminuzione del tempo tende sempre di più ad appiattirsi. Questo è sicuramente dovuto al fatto che aumentando i processori, va ad aumentare la comunicazione, creando overhead, infatti aumentano sempre di più i processori che devono eseguire l'operazione di MPI_Reduce e di MPI_Bcast (che sono comunque bloccanti a differenza delle send e receive utilizzate) impattando negativamente sul tempo di esecuzione. Quindi per l'algoritmo in questione, un ottimo compromesso fra tempi e costo da investire in processori, vale sicuramente la pena fermarsi ad 8 processori. Anche il test della scalabilità debole conferma tale ipotesi, infatti come si può vedere dalla tabella, quando si aumentano i processori da 8 in su, il tempo inizia ad aumentare significativamente, mentre fino ad 8 processori l'aumento risulta accettabile.
