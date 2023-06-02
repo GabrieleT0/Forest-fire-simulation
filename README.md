@@ -174,7 +174,6 @@ Per terminare la simulazione nel caso la foresta sia vuota, ogni processo increm
 ```C
 MPI_Reduce(&empty_count,&empty_recv_count,1,MPI_INT,MPI_SUM,0,MPI_COMM_WORLD);
         if(myrank == 0){
-            //printf("Contatore vuote: %d\n",empty_recv_count);
             if(empty_recv_count == m*n){
                 all_empty = 1;
             }
@@ -210,7 +209,7 @@ L'output dell'esecuzione dei programmi viene riportato nei file ```output_sequen
 
 ## Benchmarks
 Prima di andare nel dettaglio nel mostrare i dati del benchmark effettuato è opportuno fare le seguenti premesse.
-I benchmark sono stati eseguiti su un cluster di macchine virtuali create su Google Cloud. In particolare, il cluster è stato creato con 4 macchine di tipo e2-standard-8. Questo tipo di macchine hanno si 8vCPU, ma in realtà al sistema operativo solo 4vCPU vengono esposte. Di conseguenza nel test, per avere dati più realistici e sfruttare solamente i core reali disponibili della macchina, il test è stato eseguito con procesessori che variano da 1 fino a 16 (senza usare oversubscribe). Tutti i tempi di esecuzione che saranno mostrati nel seguito, sono la media dei tempi su 10 esecuzioni consecutive della simulazione.
+I benchmark sono stati eseguiti su un cluster di macchine virtuali create su Google Cloud. In particolare, il cluster è stato creato con 4 macchine di tipo e2-standard-8. Questo tipo di macchine hanno si 8vCPU, ma in realtà al sistema operativo solo 4vCPU vengono esposte. Di conseguenza, per avere dati più realistici e sfruttare solamente i core reali disponibili della macchina, il test è stato eseguito con procesessori che variano da 1 fino a 16 (senza usare oversubscribe). Tutti i tempi di esecuzione che saranno mostrati nel seguito, sono la media dei tempi su 10 esecuzioni consecutive della simulazione.
 ### Scalabilità forte
 Nel test della scalabilità forte, vengono riportati i tempi dell'esecuzione della simulazione su una matrice di dimensione $3000*3000$, eseguendo $100$ $step$ e con le seguenti probabilità:
 
@@ -221,7 +220,8 @@ Nel test della scalabilità forte, vengono riportati i tempi dell'esecuzione del
 
 ![Scalabilità forte](img/strong_scalability.png?raw=true)
 
-Nella tabella di seguito vengono riportati nel dettaglio i dati con anche il relativo speedup al crescere dei processori. Nel calcolo del tempo è stato escluso il tempo impiegato dal MASTER node per inizializzare la matrice all'inizio della simulazione, tale inizializzazione prende 8,3082s (calcolato su 10 esecuzioni).
+Nella tabella di seguito vengono riportati nel dettaglio i dati con anche il relativo speedup al crescere dei processori. Nel calcolo del tempo è stato escluso il tempo impiegato dal MASTER node per inizializzare la matrice all'inizio della simulazione, tale inizializzazione prende 
+$8,3082s$ (calcolato su 10 esecuzioni).
 
 | PROCESSORI |  TEMPO (sec.)| SPEEDUP |
 |------------|--------------|---------|
@@ -243,9 +243,9 @@ Nella tabella di seguito vengono riportati nel dettaglio i dati con anche il rel
 | 16         | 3,32661      | 11,708  |
 
 ### Scalabilità debole
-Nel test per la scalabilità debole invece, viene preso il tempo dell'esecuzione aumentado il numero delle righe e il numero di processori su cui viene eseguita la simulazione. In particolare, il numero di colonne è fissato a 500, mentre le righe sono np*200 (np=numero dei processori) e con un nemero di step dell'algoritmo pari a 100.
+Nel test per la scalabilità debole invece, viene preso il tempo dell'esecuzione aumentando il numero delle righe e il numero di processori su cui viene eseguita la simulazione. In particolare, il numero di colonne è fissato a 500, mentre le righe sono np*200 (np=numero dei processori) e con un numero di step dell'algoritmo pari a 100.
 
-![Scalabilità forte](img/weak_scalability.png?raw=true)
+![Scalabilità debole](img/weak_scalability.png?raw=true)
 
 | PROCESSORI |  TEMPO (sec.) | EFFICIENZA  |
 |------------|---------------|-------------|
@@ -267,4 +267,4 @@ Nel test per la scalabilità debole invece, viene preso il tempo dell'esecuzione
 | 16         | 0,2366        | 6,29754     |
 
 ## Conclusioni
-Come si può evincere dal test della scalabilità debole, l'algoritmo sicuramente riesce a trarre benefici dall'esecuzione in parallelo della simulazione. Da notare però che la diminuzione del tempo è forte soprattuto fino ad arrivare a 8 processori, dopo la diminuzione del tempo tende sempre di più ad appiattirsi. Questo è sicuramente dovuto al fatto che aumentando i processori, va ad aumentare la comunicazione, creando overhead, infatti aumentano sempre di più i processori che devono eseguire l'operazione di MPI_Reduce e di MPI_Bcast (che sono comunque bloccanti a differenza delle send e receive utilizzate) impattando negativamente sul tempo di esecuzione. Quindi per l'algoritmo in questione, un ottimo compromesso fra tempi e costo da investire in processori, vale sicuramente la pena fermarsi ad 8 processori. Anche il test della scalabilità debole conferma tale ipotesi, infatti come si può vedere dalla tabella, quando si aumentano i processori da 8 in su, il tempo inizia ad aumentare significativamente, mentre fino ad 8 processori l'aumento risulta accettabile.
+Come si può evincere dal test della scalabilità forte, l'algoritmo sicuramente riesce a trarre benefici dall'esecuzione in parallelo della simulazione. Da notare però che la diminuzione del tempo è forte soprattuto fino ad arrivare a 8 processori, dopo la diminuzione del tempo tende sempre di più ad appiattirsi. Questo è sicuramente dovuto al fatto che aumentando i processori, va ad aumentare la comunicazione, creando overhead, infatti aumentano sempre di più i processori che devono eseguire l'operazione di MPI_Reduce e di MPI_Bcast (che sono comunque bloccanti a differenza delle send e receive utilizzate) impattando negativamente sul tempo di esecuzione. Quindi per l'algoritmo in questione, un ottimo compromesso fra tempi e costo da investire in processori, vale sicuramente la pena fermarsi ad 8 processori. Anche il test della scalabilità debole conferma tale ipotesi, infatti come si può vedere dalla tabella, quando si aumentano i processori da 8 in su, il tempo inizia ad aumentare significativamente, mentre fino ad 8 processori l'aumento risulta accettabile.
