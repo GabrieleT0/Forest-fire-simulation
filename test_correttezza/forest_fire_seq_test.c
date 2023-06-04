@@ -22,15 +22,12 @@ void check_neighbors(char *forest,char *matrix2,int num_row,int num_col,int i,in
 void forest_initialization(char *forest,int num_row,int num_com);
 
 int main (int argc, char *argv[]){
-    FILE *fptr, *fptr2;
-    //fptr = fopen("output_sequenziale","w");
-    fptr2 = fopen("output_sequenziale","w");
-
+    FILE *fptr;
+    fptr = fopen("output_sequenziale","w");
     int prob_burn = 50;  // probabilità che un albero si incendi 0 <= prob_burn <= 100
     int prob_grow = 50;  //probabilità che un albero cresca nella cella vuota, 0 <= prob_tree <= 100
     char *forest, *matrix2, *tmp;
     int empty_counter;
-    //srand(time(NULL)); // usiamo l'ora corrente come seme per il generatore di numeri random
 
     int m,n,s;
     if(argc != 3){
@@ -50,8 +47,7 @@ int main (int argc, char *argv[]){
 
     printf("Foresta iniziale:\n");
     printMatrix(forest,m,n);
-    //print_graphic_matrix(forest,m,n,fptr);
-    print_on_file(forest,m,n,fptr2);
+    print_on_file(forest,m,n,fptr);
 
     //Ciclo per quanti sono gli step della simulazione
     for(int k = 0; k<s; k++){
@@ -90,8 +86,7 @@ int main (int argc, char *argv[]){
 
         printf("Foresta iterazione %d\n",k);
         printMatrix(forest,m,n);
-        //print_graphic_matrix(forest,m,n,fptr);
-        print_on_file(forest,m,n,fptr2);
+        print_on_file(forest,m,n,fptr);
 
         //controllo se la foresta è vuota e quindi devo fermarmi.
         if(empty_counter == m*n)

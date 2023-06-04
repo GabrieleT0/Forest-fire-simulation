@@ -20,10 +20,9 @@ void check_neighbors(char *forest,char *matrix2,int num_row,int num_col,int i,in
 void check_borders(char *forest, char *matrix2, char *top_row, char *bottom_row, int i,int j, int num_row, int num_col,int prob_burn);
 
 int main(int argc, char *argv[]){
-    FILE *fptr,*fptr2;
-    //fptr = fopen("output_parallelo","w");
-    fptr2 = fopen("output_parallelo","w");
-    int myrank, numtasks,strip_size,remainder,empty_counter;
+    FILE *fptr;
+    fptr = fopen("output_parallelo","w");
+    int myrank, numtasks,remainder;
     int *displ,*send_counts;
     char *forest;
     int sum = 0;
@@ -67,7 +66,6 @@ int main(int argc, char *argv[]){
         sum += send_counts[i];
     }
        
-    //printf("Sono il processo %d, questo è il numero di elementi che riceverò: %d\n", myrank, send_counts[myrank]);
 
     if(myrank == 0){
         /*
@@ -77,8 +75,7 @@ int main(int argc, char *argv[]){
         printf("Foresta iniziale:\n");
         forest_initialization(forest,m,n);
         printMatrix(forest,m,n);
-        //print_graphic_matrix(forest,m,n,fptr);
-        print_on_file(forest,m,n,fptr2);
+        print_on_file(forest,m,n,fptr);
     }
 
     //Dichiaro e inizializzo le sottomatrici dei processi
@@ -122,13 +119,6 @@ int main(int argc, char *argv[]){
             MPI_Irecv(bottom_row,n,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD,&request[1]);
         }
     }
-
-        /*
-        printf("-----------------Sono il processo %d ed ho riucevuto questa top row:---------------------\n",myrank);
-        printMatrix(top_row,1,n);
-        printf("-----------------Sono il processo %d ed ho ricevuto questa bottom row:-------------------\n",myrank);
-        printMatrix(bottom_row,1,n);
-        */
         if(my_row_num >= 3){ // se ho più di 3 righe possso iniziare già a computare le righe non ai bordi
             for(int i = 1; i<my_row_num - 1; i++){
                 for(int j = 0; j<n; j++){
@@ -182,13 +172,6 @@ int main(int argc, char *argv[]){
                 break;
         }
 
-        //printf("Sono il processo %d, questa è la porzione di foresta che ho ricevuto:\n",myrank);
-        //printMatrix(sub_forest,send_counts[myrank]/n,n);
-
-        //printf("Sono il processo %d ecco la mia foresta dopo il controllo:\n",myrank);
-        //printMatrix(sub_matrix,my_row_num,n);
-        //printf("\n");
-
         tmp = sub_forest;
         sub_forest = sub_matrix;
         sub_matrix = tmp;
@@ -197,7 +180,7 @@ int main(int argc, char *argv[]){
         if(myrank == 0){
             printf("Ecco la foresta all'iterazione %d:\n",i);
             printMatrix(forest,m,n);
-            print_on_file(forest,m,n,fptr2);
+            print_on_file(forest,m,n,fptr);
         }
 
         MPI_Reduce(&empty_count,&empty_recv_count,1,MPI_INT,MPI_SUM,0,MPI_COMM_WORLD);
