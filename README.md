@@ -18,7 +18,7 @@ Questo progetto è una possibile implementazione dell'algoritmo Forrest fire in 
 
 La simulazione può terminare o quando tutta la foresta è vuota, oppure quando si raggiunge un numero di iterazioni S dell'algoritmo (dato in input dall'utente al programma).
 ## Descrizione della soluzione proposta
-La soluzione proposta prevede che l'utente dia in input la dimensione della matrice ($N$ ed $M$) e il numero di step dell'algoritmo ($S$). Il processo master ($rank$ $0$), inizializza la matrice riempiendo casualmente una cella con una dei seguenti valori:
+La soluzione proposta prevede che l'utente dia in input la dimensione della matrice ($N$ ed $M$) e il numero di step dell'algoritmo ($S$). Il processo master ($rank$ $0$), inizializza la matrice riempiendo casualmente una cella con uno dei seguenti valori:
 - $T$: nella cella c'è un albero.
 - $E$: la cella è vuota.
 - $B$: l'albero sta bruciando.
@@ -145,7 +145,7 @@ void check_borders(char *forest, char *matrix2,char *top_row,char *bottom_row,in
                 matrix2[i * num_col + j] = 'B';
             }
         }
-            //se abbiamo una sola riga dobbiamo fare il confreonto sia con top che con bottom
+            //se abbiamo una sola riga dobbiamo fare il confronto sia con top che con bottom
             //ci assicuriamo anche che non siamo alla fine della matrice
         else if((bottom_row[i * num_col + j] == 'B'))
             matrix2[i * num_col + j] = 'B';   
