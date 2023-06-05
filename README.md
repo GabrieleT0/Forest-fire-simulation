@@ -199,7 +199,8 @@ Per facilitare il test della correttezza dell'algoritmo si è realiazzata una ve
 Esempio per controllare la correttezza su una matrice di dimensione 50x50 con 50 step e un numero di processori pari a 4 (per il programma parallelo). Dalla root directory del progetto eseguire i seguenti comandi.
 
 ```shell
- cd test_correttezza/
+ git clone https://github.com/GabrieleT0/Forest-fire-simulation.git
+ cd Forest-fire-simulation/test_correttezza
  ./check_correctness.sh --row 50 --column 50 --steps 40 --processors 4
  #oppure
  ./check_correctness.sh -r 50 -c 50 -s 40 -p 4
