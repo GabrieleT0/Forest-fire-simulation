@@ -83,7 +83,7 @@ if [ ! -e parallel ]
 then 
     mpicc -o parallel forest_fire_parallel_test.c
 fi
-mpirun --allow-run-as-root -np $processors --oversubscribe  parallel $row $column $steps >/dev/null
+mpirun --allow-run-as-root --mca btl_vader_single_copy_mechanism none -np $processors --oversubscribe  parallel $row $column $steps >/dev/null
 
 if [[ -e output_parallelo ]] && [[ -e output_sequenziale ]]; then
     if diff output_parallelo output_sequenziale >/dev/null; then
