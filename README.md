@@ -1,40 +1,40 @@
 # Forest-fire-simulation
-## Indice
-1. [Introduzione](#introduzione)
+## Index
+1. [Introduction](#introduction)
 
-2. [Descrizione della soluzione proposta](#descrizione-della-soluzione-proposta)
-3. [Dettagli dell'implementazione](#dettagli-dellimplementazione)
-4. [Correttezza dell'algoritmo](#correttezza-dellalgoritmo)
+2. [Description of the proposed solution](#description-of-the-proposed-solution)
+3. [Implementation details](#implementation-details)
+4. [Algorithm correctness](#algorithm-correctness)
 5. [Benchmarks](#benchmarks)
-6. [Conclusioni](#conclusioni)
+6. [Conclusions](#conclusions)
 
-## Introduzione
-Questo progetto è una possibile implementazione dell'algoritmo Forrest fire in C che utilizza Open MPI, una implementazione di MPI. Tale problema è ben descritto qui: https://en.wikipedia.org/wiki/Forest-fire_model. In breve, questa implementazione parallelizza la simulazione di un incendio boschivo, con i seguenti requisiti:
+## Introduction
+This project is a possible implementation of the Forest Fire algorithm in C using Open MPI, an implementation of MPI. The problem is well-described here: https://en.wikipedia.org/wiki/Forest-fire_model. In short, this implementation parallelizes the simulation of a forest fire, with the following requirements:
 
-1. Una cella bruciata si traforma in una cella vuota.
-2. Un albero brucia se almeno uno dei suoi vicini sta bruciando.
-3. Un albero si incendia con probabilità $b$ anche se nessun vicino sta bruciando.
-4. In una cella vuota può nascere un albero con probabilità $p$.
+1. A burnt cell becomes empty.
+2. A tree burns if at least one of its neighbors is burning.
+3. A tree catches fire with probability $b$ even if no neighbors are burning.
+4. A vacant cell can have a tree growing with probability $p$.
 
-La simulazione può terminare o quando tutta la foresta è vuota, oppure quando si raggiunge un numero di iterazioni S dell'algoritmo (dato in input dall'utente al programma).
-## Descrizione della soluzione proposta
-La soluzione proposta prevede che l'utente dia in input la dimensione della matrice ($N$ ed $M$) e il numero di step dell'algoritmo ($S$). Il processo master ($rank$ $0$), inizializza la matrice riempiendo casualmente una cella con uno dei seguenti valori:
-- $T$: nella cella c'è un albero.
-- $E$: la cella è vuota.
-- $B$: l'albero sta bruciando.
+The simulation can terminate when the entire forest is empty or when a specified number of iterations $S$ is reached (given as input by the user to the program).
+## Description of the Proposed Solution
+The proposed solution requires the user to input the size of the matrix ($N$ and $M$) and the number of algorithm steps ($S$). The master process ($rank$ $0$) initializes the matrix by randomly filling a cell with one of the following values:
+- $T$: there is a tree in the cell.
+- $E$: the cell is empty.
+- $B$: the tree is burning.
 
-Il master node poi procede a dividere in modo equo le righe della matrice fra i processi disponibili ed ogni processo lavorerà su una porzione della matrice. Ogni processo poi comunica con i processi vicini le righe agli estremi della sottomatrice ricevuta, in modo da verificare se l'albero dovrà bruciare oppure no. Se la sottomatrice ricevuta da un processo è almeno 3 righe, allora il processo potrà procedere a computare una parte della simulazione senza fare comunicazione (tranne quando andrà a considerare i bordi), questo meccanismo permette di velocizzare la simulazione. Ogni processo poi terrà conto ad ogni iterazione delle celle vuote e le comunicherà al master node, che farà terminare la simulazione quando il numero di celle vuote è pari al numero di celle totali della matrice. Altrimenti la simulazione termina al raggiungimento di $S$.
+The master node then divides the rows of the matrix evenly among the available processes, and each process will work on a portion of the matrix. Each process communicates with its neighboring processes to exchange the rows at the boundaries of its submatrix, in order to check if the tree should catch fire. If the received submatrix has at least 3 rows, the process can perform part of the simulation without communication (except when considering the edges), which speeds up the simulation. At each iteration, each process also keeps track of the empty cells and communicates this information to the master node, which will terminate the simulation when the number of empty cells is equal to the total number of cells in the matrix. Otherwise, the simulation will terminate after $S$ iterations.
 
-## Dettagli dell'implementazione
-In questa sezione saranno dettaglite le parti più significative del codice dell'implementazione.
-### Inizializzazione della foresta
+## Implementation Details
+In this section, the most significant parts of the implementation code will be detailed.
+### Forest Initialization
 ```C
-void forest_initialization(char *forest,int num_row,int num_col){
-    for(int i = 0; i<num_row; i++){
-        for(int j = 0; j<num_col; j++){
+void forest_initialization(char *forest, int num_row, int num_col){
+    for(int i = 0; i < num_row; i++){
+        for(int j = 0; j < num_col; j++){
             int rand_num = 1 + (rand() % 100);
             if(rand_num > 70)
-                forest[i* num_col + j] = 'T';
+                forest[i * num_col + j] = 'T';
             else if(rand_num <= 50)
                 forest[i * num_col + j] = 'E';
             else
@@ -43,46 +43,45 @@ void forest_initialization(char *forest,int num_row,int num_col){
     }
 }
 ```
-Il seme utilizzato da rand è il tempo, allo scorrimento di ogni cella viene generato un numero compreso fra 0 e 100 e se il numero è maggiore di 70 viene inserito un albero, se è minore o uguale a 50 sarà una cella vuota altrimenti sarà un albero che sta bruciando.
+The seed used by rand is the system time. For each cell, a random number between 0 and 100 is generated. If the number is greater than 70, a tree is placed in the cell. If the number is less than or equal to 50, the cell is empty, otherwise, the tree is set on fire.
 
-### Comunicazione asincrona dei bordi delle sottomatrici
+### Asynchronous Communication of Submatrix Borders
 ```C
-        if(myrank == 0){ 
-            //invio l'ultima riga al processo successivo
-            MPI_Isend(&sub_forest[send_counts[myrank] - n],n,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD,&request[0]);
-            //ricevo la prima riga dal processo successivo
-            MPI_Irecv(bottom_row,n,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD,&request[1]);
-        } else if(myrank == numtasks - 1){
-            //invio la prima riga al processo precedente
-            MPI_Isend(sub_forest,n,MPI_CHAR,myrank - 1,0,MPI_COMM_WORLD,&request[1]);
-            //ricevo ultima riga dal processo precedente
-            MPI_Irecv(top_row,n,MPI_CHAR,myrank - 1,0,MPI_COMM_WORLD,&request[0]);
-        } else { // tutti gli altri processi
-            //invio la prima riga al processo precedente
-            MPI_Isend(sub_forest,n,MPI_CHAR,myrank -1,0,MPI_COMM_WORLD,&request[1]);
-            //invio l'ultima riga al successivo 
-            MPI_Isend(&sub_forest[send_counts[myrank] - n],n,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD,&request[0]);
-
-            //ricevo la riga superiore dal processo precedente
-            MPI_Irecv(top_row,n,MPI_CHAR,myrank - 1,0,MPI_COMM_WORLD,&request[0]);
-            //ricevo la riga inferiore dal processo successivo
-            MPI_Irecv(bottom_row,n,MPI_CHAR,myrank + 1,0,MPI_COMM_WORLD,&request[1]);
-        }
+    if(myrank == 0){
+        //send the last row to the next process
+        MPI_Isend(&sub_forest[send_counts[myrank] - n], n, MPI_CHAR, myrank + 1, 0, MPI_COMM_WORLD, &request[0]);
+        //receive the first row from the next process
+        MPI_Irecv(bottom_row, n, MPI_CHAR, myrank + 1, 0, MPI_COMM_WORLD, &request[1]);
+    } else if(myrank == numtasks - 1){
+        //send the first row to the previous process
+        MPI_Isend(sub_forest, n, MPI_CHAR, myrank - 1, 0, MPI_COMM_WORLD, &request[1]);
+        //receive the last row from the previous process
+        MPI_Irecv(top_row, n, MPI_CHAR, myrank - 1, 0, MPI_COMM_WORLD, &request[0]);
+    } else {
+        //send the first row to the previous process
+        MPI_Isend(sub_forest, n, MPI_CHAR, myrank - 1, 0, MPI_COMM_WORLD, &request[1]);
+        //send the last row to the next process
+        MPI_Isend(&sub_forest[send_counts[myrank] - n], n, MPI_CHAR, myrank + 1, 0, MPI_COMM_WORLD, &request[0]);
+    
+        //receive the upper row from the previous process
+        MPI_Irecv(top_row, n, MPI_CHAR, myrank - 1, 0, MPI_COMM_WORLD, &request[0]);
+        //receive the lower row from the next process
+        MPI_Irecv(bottom_row, n, MPI_CHAR, myrank + 1, 0, MPI_COMM_WORLD, &request[1]);
+    }
 ```
-La comunicazione scelta è non bloccante, perchè nel mentre vengono scambiati i messaggi fra i processi, è possibile fare della computazione (non sempre), andando quindi a rendere più efficiente l'algoritmo e poi sincronizzare i processi solo quando sono necessari i messaggi.
-Ogni processo, tranne il processo con rank 0 e l'ultimo (rank = numtasks - 1), inviano la prima riga al processo precedente, in quanto ha bisogno del bordo inferiore per controllare i vicini, mentre inviano l'ultima riga al successivo, in quanto ha bisogno del bordo superiore per controllare i vicini. In ricezione invece, l'n-esimo processo deve ricevere dal processo precedente la riga superiore e dal processo successivo la riga inferiore. I valori ricevuti vengono salvati rispettivamente in ```top_row``` e ```bottom_row``` per essere utilizzati successivamente per il controllo. Il processo con rank 0 invece riceve solamente il bordo inferiore e invia l'ultima riga della sua sotto matrice al processo successivo, mentre l'ultimo processo invia la prima riga della sua sottomatrice al processo precedente e riceve l'ultima riga del processo precedente.
-### Calcolo della simulazione indipendente dalle righe ricevute
-Questa parte del codice sarà eseguita senza aspettare che le send e le receive siano terminate. In particolare, ogni processo potrà fare una computazione in maniera indipendente dagli altri processi, se la sottomatrice che ha ricevuto ha più di 3 righe. Poichè in questo caso il controllo delle celle delle righe centrali non dipende dai bordi della matrice che devo ricevere dagli altri processi.
+The chosen communication is non-blocking because it allows the processes to perform computation while the messages are being exchanged. Each process, except the process with rank 0 and the last one (rank = numtasks - 1), sends its first row to the previous process, as it needs the lower boundary for neighbor checking. It also sends its last row to the next process, as it needs the upper boundary for neighbor checking. The process with rank 0 only receives the lower boundary and sends its last row to the next process. The last process sends its first row to the previous process and receives the last row from the previous process.
+### Independent Computation of Received Rows
+This part of the code will be executed without waiting for the send and receive operations to complete. In particular, each process can perform computation independently of other processes if the received submatrix has more than 3 rows. This mechanism allows faster execution of the simulation. The computation for the rows in the center of the submatrix does not depend on the edges, so it can be done without communication..
 ```C
 int my_row_num = send_counts[myrank] / n;
 
-if(my_row_num >= 3){ // se ho più di 3 righe possso iniziare già a computare le righe non ai bordi
+if(my_row_num >= 3){ // computation for rows not at the edges
             for(int i = 1; i<my_row_num - 1; i++){
                 for(int j = 0; j<n; j++){
                     if(sub_forest[i * n + j] == 'B')
-                        sub_matrix[i * n + j] = 'E'; //Se è già Burned allora ora la cella diventa vuota
+                        sub_matrix[i * n + j] = 'E'; //If already burned, then now is empty
                     else if(sub_forest[i * n + j] == 'E'){
-                        int rand_num = 1 + (rand() % 100); // se è vuota, allora con probabilità prob_grown può crescere un albero nella cella
+                        int rand_num = 1 + (rand() % 100); // if empty, then with prob_grown probability, can grow a tree in the cell
                         if(rand_num <= prob_grow){
                             sub_matrix[i * n + j] = 'T';
                         } else
@@ -94,49 +93,49 @@ if(my_row_num >= 3){ // se ho più di 3 righe possso iniziare già a computare l
             }
         }
 ```
-Quindi partendo dalla seconda riga della matrice, fino alla penultima, posso già calcolarmi tutti i valori delle celle. Per il calcolo dei valori della foresta nell'iterazione i-esima, viene utilizzata una matrice di supporto ```sub_matrix``` dove vengono inseriti i nuovi valori della martrice, che al termine dell'iterazione sarà scambiata con ```sub_forest``` per il nuovo step. Nel caso in cui nella cella che stiamo considerando abbiamo un albero, allora viene chiamata la funzione ```check_neighbors```.
+For each iteration, a support matrix ```sub_matrix``` is used to store the new values of the matrix. At the end of the iteration, the ```sub_matrix``` will be swapped with ```sub_forest``` for the next step. When considering a cell with a tree, the function ```check_neighbors``` is called
 ```C
 void check_neighbors(char *forest,char *matrix2,int num_row,int num_col,int i,int j,int prob_burn){
-    //controllo a destra e a sinistra
+    //check on the right and on the left
 
-    //se controllando l'elemento a destra sono ancora della riga (quindi il resto della divisione deve essere 0 altrimenti vuol dire che sono all'ultimo elemento)
+    //if look at the right and i'm already in the row (so the remainder from the division is 0 otherwise this mean that i'm at the last element)
     if(((i * num_col)  + j + 1) % num_col != 0 && forest[((i * num_col) + j + 1)] == 'B')
         matrix2[i * num_col + j] = 'B';
-    //se controllando l'elemento a sinistra sono ancora della riga (quindi il resto della divisione deve essere diverso da n-1 altrimenti vuol dire che sono al primo elemento della riga)
+    ///if look at the left and i'm already in the row (so the remainder from the division is n-1 otherwise this mean that i'm at the first element)
     if(((i * num_col)  + j - 1) % num_col != num_col-1 && forest[((i * num_col) + j - 1)] == 'B')
         matrix2[i * num_col + j] = 'B';
 
-    //controllo sopra e sotto
+    //check on top and at the bottom
     
-    //verifico se il vicino della riga inferiore sta bruciando
+    //I check if the neighbor on the lower row is burning
     if(((i * num_col) + j + num_col) < num_row * num_col && forest[((i * num_col) + j + num_col)] == 'B')
         matrix2[i * num_col + j] = 'B';
 
-    //verifico se il vicino della riga superiore sta bruciando
+    //I check if the neighbor on the upper row is burning
     if(((i * num_col) + j - num_col) >=0 && forest[((i * num_col) + j - num_col)] == 'B')
         matrix2[i * num_col + j] = 'B';   
 
-    //se nessun vicino è burned allora con probabilità prob_burn può diventare burned
+    //if no neighbor is burned then with probability prob_burn it can become burned
     int rand_num = 1 + (rand() % 100);
-    if(matrix2[i * num_col + j] == 'B' || rand_num < prob_burn){ //verifico anche se negli if precedenti non l'ho già bruciato, altrimenti poi se non viene soddisfatto il secondo valore dell'OR inserirei un albero in una cella dove uno stava bruciando
+    if(matrix2[i * num_col + j] == 'B' || rand_num < prob_burn){ //I also check if in the previous ifs I haven't already burned it, otherwise then if the second value of the OR is not satisfied, I would insert a tree in a cell where one was burning
         matrix2[i * num_col + j] = 'B';
     } else{
         matrix2[i * num_col + j] = 'T';
     }
 }
 ```
-Questa funzione, per la cella che stiamo considerando, va a verificare lo stato dei vicini a destra, sinistra, sopra e sotto. Se uno di questi sta bruciando, allora la cella diventerà $B$. Altrimenti se nessuno sta bruciando con probabilità ```prob_burn```, l'albero brucerà.
-### Controllo delle righe ai bordi
-Per la computazione delle righe ai bordi vi è bisogno delle righe degli altri processi, quindi vengono utilizzate due ```MPI_Wait```, rispettivamente su ```request[0]``` e ```request[1]```, dopodichè si può procedere a controllare la prima e l'ultima riga della sottomatrice di ogni processo. Questo viene fatto utilizzando la funzione ```check_borders``` che prende in input le righe superiore e inferiore ricevute e va ad eseguire i controlli.
+This function, for the cell we are considering, checks the state of the neighbors to the right, left, above, and below. If any of them is burning, then the cell will become $B$. Otherwise, if none of them is burning with a probability of ```prob_burn```, the tree will catch fire.
+### Border Rows Control
+For the computation of border rows, we need the rows from other processes. So, two ```MPI_Wait``` calls are used on ```request[0]``` and ```request[1]``` respectively, after which we can proceed to check the first and last rows of each process's submatrix. This is done using the ```check_borders``` function, which takes the received upper and lower rows as input and performs the checks.
 ```C
 void check_borders(char *forest, char *matrix2,char *top_row,char *bottom_row,int i,int j, int num_row, int num_col,int prob_burn){
-    //controllo a destra e a sinistra
+    // check to the right and left
     if(((i * num_col)  + j + 1) % num_col != 0 && forest[((i * num_col) + j + 1)] == 'B')
         matrix2[i * num_col + j] = 'B';
     if(((i * num_col)  + j - 1) % num_col != num_col-1 && forest[((i * num_col) + j - 1)] == 'B')
         matrix2[i * num_col + j] = 'B';
         
-    //se sto considerando la prima riga, allora faccio il controllo con top_row
+    // if considering the first row, then check with top_row
     if(i == 0){
         if(top_row[i * num_col + j] == 'B')
             matrix2[i * num_col + j] = 'B'; 
@@ -145,32 +144,32 @@ void check_borders(char *forest, char *matrix2,char *top_row,char *bottom_row,in
                 matrix2[i * num_col + j] = 'B';
             }
         }
-            //se abbiamo una sola riga dobbiamo fare il confronto sia con top che con bottom
-            //ci assicuriamo anche che non siamo alla fine della matrice
+        // if we have only one row, we need to check both top and bottom
+        // also, ensure that we are not at the end of the matrix
         else if((bottom_row[i * num_col + j] == 'B'))
             matrix2[i * num_col + j] = 'B';   
         
-    //se sono all'ultima allora controllo con bottom_row
+    // if it's the last row, then check with bottom_row
     } else if(i == num_row - 1){
         if(bottom_row[j] == 'B')
             matrix2[i * num_col + j] = 'B';   
-        //verifico se il vicino della riga superiore sta bruciando
+        // check if the neighbor of the upper row is burning
         if(((i * num_col) + j - num_col) >=0 && forest[((i * num_col) + j - num_col)] == 'B')
             matrix2[i * num_col + j] = 'B';  
     }
 
-    //se nessun vicino è burned allora con probabilità prob_burn può diventare burned
+    // if no neighbor is burning, then with probability prob_burn it can catch fire
     int rand_num = 1 + (rand() % 100);
-    if(matrix2[i * num_col + j] == 'B' || rand_num < prob_burn){ //verifico anche se negli if precedenti non l'ho già bruciato, altrimenti poi se non viene soddisfatto il secondo valore dell'OR inserirei un albero in una cella dove uno stava bruciando
+    if(matrix2[i * num_col + j] == 'B' || rand_num < prob_burn){ // check if it hasn't been burned in the previous conditions, otherwise, we would set a tree on fire in a cell where one was already burning
         matrix2[i * num_col + j] = 'B';
     } else{
         matrix2[i * num_col + j] = 'T';
     }
 }
 ```
-La funzione è simile a quella precedente, ed inoltre bisogna considerare anche il caso in cui il processo abbia ricevuto una sola riga, poichè in tal caso, quando leggiamo la riga 0, dobbiamo confrontare i valori nelle cella sia con la riga superiore ricevuta che con quella inferiore.
-### Terminazione della simulazione del caso la foresta sia vuota
-Per terminare la simulazione nel caso la foresta sia vuota, ogni processo incrementa un contatore di celle vuote, che azzera poi ad ogni nuova iterazione.
+The function is similar to the previous one, and we also need to consider the case where the process received only one row. In this case, when reading row 0, we must compare the values in the cell with both the received upper row and the lower row.
+### Termination of the simulation if the forest is empty
+To terminate the simulation when the forest is empty, each process increments a counter of empty cells, which is then reset at each new iteration.
 ```C
 MPI_Reduce(&empty_count,&empty_recv_count,1,MPI_INT,MPI_SUM,0,MPI_COMM_WORLD);
         if(myrank == 0){
@@ -186,43 +185,42 @@ MPI_Reduce(&empty_count,&empty_recv_count,1,MPI_INT,MPI_SUM,0,MPI_COMM_WORLD);
             break;
         }
 ```
-Si è utilizzata la ```MPI_Reduce```, in modo che viene fatta la somma dei contatori ricevuti da ogni processo(```empty_count```), se il valore della somma è uguale al numero di elementi totali della matrice, allora viene impostato a $true$ un flag ```all_empty``` e il processo master farà la broadcast del flag. Ogni processo controllerà il valore del flag e se lo trova ad 1 si arresterà e terminerà la computazione (il processo master mostrerà sul terminale dopo quante iterazioni la foresta è risultata vuota).
-### Output della simulazione
-Al termine degli step o quando la foresta è vuota viene eseguita una ```MPI_Gather```, dove il master riceverà tutte le sottomatrici e stamperà sia su terminale che su file la foresta al termine dell'algoritmo. 
+The MPI_Reduce is used so that the sum of the counters received from each process (empty_count) is computed. If the sum is equal to the total number of elements in the matrix, then a flag all_empty is set to $true$, and the master process broadcasts this flag. Each process checks the value of the flag, and if it is 1, the process stops and ends the computation (the master process displays on the terminal after how many iterations the forest became empty).
+### Output of the simulation
+At the end of the steps or when the forest is empty, an MPI_Gather is executed, where the master process receives all the submatrices and prints both on the terminal and in a file the state of the forest at the end of the algorithm.
 
 ```C
 MPI_Gatherv(sub_forest,send_counts[myrank],MPI_CHAR,forest,send_counts,displ,MPI_CHAR,0,MPI_COMM_WORLD);
 ```
-## Correttezza dell'algoritmo
-Per facilitare il test della correttezza dell'algoritmo si è realiazzata una versione sequenziale dell'algoritmo e una versione parallela che stampa la foresta ad ogni iterazione, in modo da poter controllare se in ogni step dell'algoritmo le foreste sono sempre uguali. Entrambi i programmi inseriscono su un file lo stato della foresta ad ogni iterazione. Per rendere più veloce il test si è realizzato un piccolo script bash che esegue i due programmi e poi con il comando ```diff``` verifica se i due file sono uguali.
+## Algorithm correctness
+To facilitate the correctness testing of the algorithm, a sequential version of the algorithm and a parallel version that prints the forest at each iteration were implemented. This way, we can check if in each step of the algorithm, the forests are always the same. Both programs output the state of the forest at each iteration to a file. To speed up the test, a small bash script was created that runs both programs and then uses the ```diff``` command to check if the two files are identical.
 
-Esempio per controllare la correttezza su una matrice di dimensione 50x50 con 50 step e un numero di processori pari a 4 (per il programma parallelo). Dalla root directory del progetto eseguire i seguenti comandi.
+Example for checking correctness on a 50x50 matrix with 50 steps and 4 processors (for the parallel program). From the root directory of the project, execute the following commands.
 
 ```shell
  git clone https://github.com/GabrieleT0/Forest-fire-simulation.git
  cd Forest-fire-simulation/test_correttezza
  ./check_correctness.sh --row 50 --column 50 --steps 40 --processors 4
- #oppure
+ #or
  ./check_correctness.sh -r 50 -c 50 -s 40 -p 4
 
 ```
-L'output dell'esecuzione dei programmi viene riportato nei file ```output_sequenziale``` e ```output_parallelo```. Se i due file contengono lo stesso output, cioè significa che nelle $S$ iterazioni, lo stato della foresta era sempre uguale, fra programma eseguito con $p$ processori e fra il programma sequenziale. Ciò ci assicura la corretteza del programma parallelo.
+The output of the program execution is stored in the files ```output_sequenzial```e and ```output_parallelo```. If the two files contain the same output, it means that in $S$ iterations, the state of the forest was always the same, both in the program executed with $p$ processors and in the sequential program. This assures us of the correctness of the parallel program.
 
 ## Benchmarks
-Prima di andare nel dettaglio nel mostrare i dati del benchmark effettuato è opportuno fare le seguenti premesse.
-I benchmark sono stati eseguiti su un cluster di macchine virtuali create su Google Cloud. In particolare, il cluster è stato creato con 4 macchine di tipo e2-standard-8. Questo tipo di macchine hanno si 8vCPU, ma in realtà al sistema operativo solo 4vCPU vengono esposte. Di conseguenza, per avere dati più realistici e sfruttare solamente i core reali disponibili della macchina, il test è stato eseguito con procesessori che variano da 1 fino a 16 (senza usare oversubscribe). Tutti i tempi di esecuzione che saranno mostrati nel seguito, sono la media dei tempi su 10 esecuzioni consecutive della simulazione.
-### Scalabilità forte
-Nel test della scalabilità forte, vengono riportati i tempi dell'esecuzione della simulazione su una matrice di dimensione $3000*3000$, eseguendo $100$ $step$ e con le seguenti probabilità:
+Before going into detail in showing the benchmark data, it is important to make the following considerations.
+The benchmarks were run on a cluster of virtual machines created on Google Cloud. Specifically, the cluster was created with 4 machines of type e2-standard-8. These machines have 8 vCPUs, but only 4 vCPUs are exposed to the operating system. Therefore, to obtain more realistic data and only use the real cores available on the machine, the test was run with processors ranging from 1 to 16 (without oversubscribe). All execution times shown below are the average of 10 consecutive simulation runs.
+### Strong Scalability
+In the strong scalability test, the execution times of the simulation on a matrix of size $3000*3000$, running 100 steps, and with the following probabilities were recorded:
 
 ```C
-    int prob_burn = 50;  // probabilità che un albero si incendi
-    int prob_grow = 50;  //probabilità che un albero cresca nella cella vuota
+    int prob_burn = 50;  // probability that a tree catches fire
+    int prob_grow = 50;  // probability that a tree grows in an empty cell
 ```
 
-![Scalabilità forte](img/strong_scalability.png?raw=true)
+![Strong Scalability](img/strong_scalability.png?raw=true)
 
-Nella tabella di seguito vengono riportati nel dettaglio i dati con anche il relativo speedup al crescere dei processori. Nel calcolo del tempo è stato escluso il tempo impiegato dal MASTER node per inizializzare la matrice all'inizio della simulazione, tale inizializzazione prende 
-$8,3082s$ (calcolato su 10 esecuzioni).
+The table below provides detailed data, including the speedup as the number of processors increases. In calculating the time, the time taken by the MASTER node to initialize the matrix at the beginning of the simulation was excluded, which takes $8.3082s$ (calculated over 10 runs).
 
 | PROCESSORI |  TEMPO (sec.)| SPEEDUP |
 |------------|--------------|---------|
@@ -243,8 +241,8 @@ $8,3082s$ (calcolato su 10 esecuzioni).
 | 15         | 3,58176      | 10,997  |
 | 16         | 3,32661      | 11,708  |
 
-### Scalabilità debole
-Nel test per la scalabilità debole invece, viene preso il tempo dell'esecuzione aumentando il numero delle righe e il numero di processori su cui viene eseguita la simulazione. In particolare, il numero di colonne è fissato a 500, mentre le righe sono np*200 (np=numero dei processori) e con un numero di step dell'algoritmo pari a 100.
+### Weak Scalability
+In the weak scalability test, the execution time was recorded as the number of rows and the number of processors used for the simulation increased. Specifically, the number of columns was fixed at 500, while the number of rows was set to np*200 (np = number of processors), with 100 steps in the algorithm.
 
 ![Scalabilità debole](img/weak_scalability.png?raw=true)
 
@@ -267,5 +265,5 @@ Nel test per la scalabilità debole invece, viene preso il tempo dell'esecuzione
 | 15         | 0,2216        | 6,72382     |
 | 16         | 0,2366        | 6,29754     |
 
-## Conclusioni
-Come si può evincere dal test della scalabilità forte, l'algoritmo sicuramente riesce a trarre benefici dall'esecuzione in parallelo della simulazione. Da notare però che la diminuzione del tempo è forte soprattuto fino ad arrivare a 8 processori, dopo la diminuzione del tempo tende sempre di più ad appiattirsi. Questo è sicuramente dovuto al fatto che aumentando i processori, va ad aumentare la comunicazione, creando overhead, infatti aumentano sempre di più i processori che devono eseguire l'operazione di MPI_Reduce e di MPI_Bcast (che sono comunque bloccanti a differenza delle send e receive utilizzate) impattando negativamente sul tempo di esecuzione. Quindi per l'algoritmo in questione, un ottimo compromesso fra tempi e costo da investire in processori, vale sicuramente la pena fermarsi ad 8 processori. Anche il test della scalabilità debole conferma tale ipotesi, infatti come si può vedere dalla tabella, quando si aumentano i processori da 8 in su, il tempo inizia ad aumentare significativamente, mentre fino ad 8 processori l'aumento risulta accettabile.
+## Conclusions
+As evident from the strong scalability test, the algorithm definitely benefits from the parallel execution of the simulation. However, note that the decrease in time is significant especially up to 8 processors. Beyond 8 processors, the decrease in time tends to flatten out. This is mainly due to the increase in communication as the number of processors increases, creating overhead. Specifically, more processors have to execute the MPI_Reduce and MPI_Bcast operations, which are blocking (unlike the send and receive operations used), negatively impacting the execution time. Therefore, for the given algorithm, a good compromise between time and the cost of investing in processors is certainly achieved by stopping at 8 processors. The weak scalability test confirms this hypothesis, as when increasing the number of processors from 8 onwards, the time starts to increase significantly, whereas up to 8 processors, the increase is acceptable.
